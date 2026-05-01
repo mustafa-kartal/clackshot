@@ -1,40 +1,42 @@
 # ClackShot
 
-Modern, minimal, cross-platform ekran görüntüsü ve ekran kaydı uygulaması.
+Modern, minimal, cross-platform screenshot and screen recording tool.
 
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-blue)](https://github.com/mustafa-kartal/clackshot/releases/latest)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![Release](https://img.shields.io/github/v/release/mustafa-kartal/clackshot?label=latest)](https://github.com/mustafa-kartal/clackshot/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/mustafa-kartal/clackshot/total?label=downloads)](https://github.com/mustafa-kartal/clackshot/releases)
 
-## Özellikler
+[Türkçe](./README-TR.md)
 
-- **Ekran görüntüsü** — tam ekran, belirli alan seçimi, pencere capture
-- **Ekran kaydı** — MediaRecorder tabanlı, MP4 çıktı
-- **Annotation editörü** — Konva tabanlı, metin, şekil, ok ekleme
-- **Face cam** — kayıt sırasında kamera overlay
-- **Clipboard** — capture sonrası otomatik panoya kopyalama
-- **PNG kayıt** — istediğin konuma dışa aktar
-- **Sistem tray** — arka planda çalışır, her zaman erişilebilir
-- **Global kısayollar** — uygulamaya geçmeden tetikle
-- **Otomatik güncelleme** — GitHub Releases üzerinden
+## Features
 
-## Kısayollar
+- **Screenshot** — full screen, area selection, window capture
+- **Screen recording** — MediaRecorder based, MP4 output
+- **Annotation editor** — Konva based, text, shapes, arrows
+- **Face cam** — camera overlay during recording
+- **Clipboard** — automatic copy to clipboard after capture
+- **PNG export** — save to any location
+- **System tray** — runs in the background, always accessible
+- **Global shortcuts** — trigger without switching to the app
+- **Auto update** — via GitHub Releases
 
-| Eylem | macOS | Windows / Linux |
+## Shortcuts
+
+| Action | macOS | Windows / Linux |
 |---|---|---|
-| Tam ekran capture | `Cmd+Shift+3` | `Ctrl+Shift+3` |
-| Alan seçerek capture | `Cmd+Shift+4` | `Ctrl+Shift+4` |
-| Ekran kaydı başlat/durdur | `Cmd+Shift+5` | `Ctrl+Shift+5` |
+| Full screen capture | `Cmd+Shift+3` | `Ctrl+Shift+3` |
+| Area selection capture | `Cmd+Shift+4` | `Ctrl+Shift+4` |
+| Start / stop recording | `Cmd+Shift+5` | `Ctrl+Shift+5` |
 
-## Geliştirme
+## Development
 
 ```bash
 npm install
 npm run dev
 ```
 
-> **macOS:** İlk açılışta System Settings → Privacy & Security → **Screen Recording** altında uygulamaya izin verin.
+> **macOS:** On first launch, grant permission under System Settings → Privacy & Security → **Screen Recording**.
 
 ## Build
 
@@ -44,37 +46,37 @@ npm run build:win     # Windows (nsis x64)
 npm run build:linux   # Linux (AppImage + deb)
 ```
 
-### Release Yayınlama
+### Publishing a Release
 
 ```bash
 export GH_TOKEN=your_github_token
 npm run build:mac -- --publish always
 ```
 
-> macOS notarization için `APPLE_ID` ve `APPLE_APP_SPECIFIC_PASSWORD` env değişkenlerini ayarlayın, `electron-builder.yml` içinde `notarize: true` yapın.
+> For macOS notarization, set `APPLE_ID` and `APPLE_APP_SPECIFIC_PASSWORD` env variables and set `notarize: true` in `electron-builder.yml`.
 
-## Mimari
+## Architecture
 
 ```
 electron/
-  main/         # Ana süreç (Node) — IPC, tray, shortcuts, updater
-  preload/      # Renderer'a güvenli köprü
+  main/         # Main process (Node) — IPC, tray, shortcuts, updater
+  preload/      # Secure bridge to renderer
 src/
-  editor/       # Ana editör penceresi (React + Tailwind + Konva)
-  overlay/      # Saydam fullscreen capture alanı
-  face-cam/     # Kamera overlay penceresi
-  splash/       # Başlangıç ekranı
-  shared/       # Ortak tipler (main + renderer)
+  editor/       # Main editor window (React + Tailwind + Konva)
+  overlay/      # Transparent fullscreen capture area
+  face-cam/     # Camera overlay window
+  splash/       # Splash screen
+  shared/       # Shared types (main + renderer)
 ```
 
 ## Changelog
 
-Tüm sürüm notları için [CHANGELOG.md](CHANGELOG.md) dosyasına bakın.
+See [CHANGELOG.md](CHANGELOG.md) for all release notes.
 
-## Katkı
+## Contributing
 
-Pull request'ler memnuniyetle karşılanır. Büyük değişiklikler için önce bir [issue açın](https://github.com/mustafa-kartal/clackshot/issues).
+Pull requests are welcome. For major changes, please open an [issue](https://github.com/mustafa-kartal/clackshot/issues) first.
 
-## Lisans
+## License
 
 [MIT](LICENSE)
