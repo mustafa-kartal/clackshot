@@ -13,8 +13,11 @@
 ## Screenshots
 
 <div align="center">
-  <img src="./resources/screenshots/screenshot-1777617584464.png" alt="ClackShot Main Screen" width="49%" />
-  <img src="./resources/screenshots/screenshot-1777617684717.png" alt="ClackShot Annotation Editor" width="49%" />
+
+| Main Screen | Annotation Editor |
+|---|---|
+| <img src="./resources/screenshots/screenshot-1777617584464.png" alt="ClackShot Main Screen" /> | <img src="./resources/screenshots/screenshot-1777617684717.png" alt="ClackShot Annotation Editor" /> |
+
 </div>
 
 ## Features
