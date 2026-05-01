@@ -10,6 +10,13 @@
   [English](./README.md)
 </div>
 
+## Ekran Görüntüleri
+
+<div align="center">
+  <img src="./resources/screenshots/screenshot-1777617584464.png" alt="ClackShot Ana Ekran" width="700" />
+  <img src="./resources/screenshots/screenshot-1777617684717.png" alt="ClackShot Annotation Editörü" width="700" />
+</div>
+
 ## Özellikler
 
 - **Ekran görüntüsü** — tam ekran, belirli alan seçimi, pencere capture

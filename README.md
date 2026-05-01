@@ -10,6 +10,13 @@
   [Türkçe](./README-TR.md)
 </div>
 
+## Screenshots
+
+<div align="center">
+  <img src="./resources/screenshots/screenshot-1777617584464.png" alt="ClackShot Main Screen" width="700" />
+  <img src="./resources/screenshots/screenshot-1777617684717.png" alt="ClackShot Annotation Editor" width="700" />
+</div>
+
 ## Features
 
 - **Screenshot** — full screen, area selection, window capture
