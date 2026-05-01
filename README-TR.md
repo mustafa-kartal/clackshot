@@ -13,8 +13,8 @@
 ## Ekran Görüntüleri
 
 <div align="center">
-  <img src="./resources/screenshots/screenshot-1777617584464.png" alt="ClackShot Ana Ekran" width="700" />
-  <img src="./resources/screenshots/screenshot-1777617684717.png" alt="ClackShot Annotation Editörü" width="700" />
+  <img src="./resources/screenshots/screenshot-1777617584464.png" alt="ClackShot Ana Ekran" width="49%" />
+  <img src="./resources/screenshots/screenshot-1777617684717.png" alt="ClackShot Annotation Editörü" width="49%" />
 </div>
 
 ## Özellikler
