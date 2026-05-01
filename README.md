@@ -2,9 +2,10 @@
 
 Modern, minimal, cross-platform ekran görüntüsü ve ekran kaydı uygulaması.
 
-![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-blue)
-![License](https://img.shields.io/github/license/mustafa-kartal/clackshot)
-![Version](https://img.shields.io/github/v/release/mustafa-kartal/clackshot)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-blue)](https://github.com/mustafa-kartal/clackshot/releases/latest)
+[![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
+[![Release](https://img.shields.io/github/v/release/mustafa-kartal/clackshot?label=latest)](https://github.com/mustafa-kartal/clackshot/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/mustafa-kartal/clackshot/total?label=downloads)](https://github.com/mustafa-kartal/clackshot/releases)
 
 ## Özellikler
 
