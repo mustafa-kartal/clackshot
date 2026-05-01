@@ -66,9 +66,13 @@ src/
   shared/       # Ortak tipler (main + renderer)
 ```
 
+## Changelog
+
+Tüm sürüm notları için [CHANGELOG.md](CHANGELOG.md) dosyasına bakın.
+
 ## Katkı
 
-Pull request'ler memnuniyetle karşılanır. Büyük değişiklikler için önce bir issue açın.
+Pull request'ler memnuniyetle karşılanır. Büyük değişiklikler için önce bir [issue açın](https://github.com/mustafa-kartal/clackshot/issues).
 
 ## Lisans
 
