@@ -86,6 +86,13 @@ export function createFaceCamWindow(): BrowserWindow {
   return faceCamWindow;
 }
 
+export function getFaceCamBounds(): { x: number; y: number; width: number; height: number; scaleFactor: number } | null {
+  if (!faceCamWindow || faceCamWindow.isDestroyed()) return null;
+  const bounds = faceCamWindow.getBounds();
+  const display = screen.getDisplayMatching(bounds);
+  return { ...bounds, scaleFactor: display.scaleFactor };
+}
+
 export function closeFaceCamWindow(): void {
   if (faceCamWindow && !faceCamWindow.isDestroyed()) {
     faceCamWindow.close();

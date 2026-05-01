@@ -4,11 +4,32 @@
 import { create } from 'zustand';
 import type { FaceCamShape, RecordingMode, SourceInfo } from '../../shared/types';
 import { startAreaRecording, startScreenRecording } from '../recording/encoder';
-import type { EncoderOptions, RecorderHandle } from '../recording/encoder';
+import type { EncoderOptions, RecorderHandle, WebcamOverlay } from '../recording/encoder';
 import { useConfigStore } from './configStore';
 
 let handle: RecorderHandle | null = null;
 let timerId: number | null = null;
+let webcamStream: MediaStream | null = null;
+
+async function getWebcamStream(): Promise<MediaStream | null> {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 480 }, height: { ideal: 480 }, frameRate: { ideal: 30 }, facingMode: 'user' },
+      audio: false,
+    });
+    webcamStream = stream;
+    return stream;
+  } catch (err) {
+    console.warn('Webcam stream alınamadı', err);
+    return null;
+  }
+}
+
+async function buildWebcamOverlay(shape: FaceCamShape): Promise<WebcamOverlay | undefined> {
+  const stream = await getWebcamStream();
+  if (!stream) return undefined;
+  return { stream, shape };
+}
 
 // Aktif config'ten encoder ayarlarını topla. Config henüz yüklenmediyse
 // (kullanıcı global shortcut'la doğrudan kayıt başlatırsa) makul varsayılan.
@@ -94,18 +115,19 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
     try {
       const sources = await window.api.capture.listSources(['screen']);
       if (sources.length === 0) return;
+      const webcam = get().withFaceCam
+        ? await buildWebcamOverlay(get().faceCamShape)
+        : undefined;
       if (get().withCountdown) {
         await window.api.recording.countdown(3);
       }
-      const handle = await startScreenRecording({
+      const h = await startScreenRecording({
         sourceId: sources[0].id,
         ...currentEncoderOptions(get().withMic),
+        webcam,
       });
-      get().begin('fullscreen', handle);
-      if (get().withFaceCam) {
-        await window.api.recording.showFaceCam();
-        get().setFaceCamVisible(true);
-      }
+      get().begin('fullscreen', h);
+      if (webcam) get().setFaceCamVisible(true);
     } catch (err) {
       console.error('Tam ekran kaydı başlatılamadı', err);
     }
@@ -114,18 +136,19 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
   async startWindow(source) {
     if (get().active) return;
     try {
+      const webcam = get().withFaceCam
+        ? await buildWebcamOverlay(get().faceCamShape)
+        : undefined;
       if (get().withCountdown) {
         await window.api.recording.countdown(3);
       }
-      const handle = await startScreenRecording({
+      const h = await startScreenRecording({
         sourceId: source.id,
         ...currentEncoderOptions(get().withMic),
+        webcam,
       });
-      get().begin('window', handle);
-      if (get().withFaceCam) {
-        await window.api.recording.showFaceCam();
-        get().setFaceCamVisible(true);
-      }
+      get().begin('window', h);
+      if (webcam) get().setFaceCamVisible(true);
     } catch (err) {
       console.error('Pencere kaydı başlatılamadı', err);
     }
@@ -151,20 +174,21 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
       await new Promise((r) => setTimeout(r, 80));
       const sources = await window.api.capture.listSources(['screen']);
       if (sources.length === 0) return;
+      const webcam = get().withFaceCam
+        ? await buildWebcamOverlay(get().faceCamShape)
+        : undefined;
       if (get().withCountdown) {
         await window.api.recording.countdown(3);
       }
-      const handle = await startAreaRecording(
+      const h = await startAreaRecording(
         sources[0].id,
         rect,
         window.devicePixelRatio || 1,
         currentEncoderOptions(get().withMic),
+        webcam,
       );
-      get().begin('area', handle);
-      if (get().withFaceCam) {
-        await window.api.recording.showFaceCam();
-        get().setFaceCamVisible(true);
-      }
+      get().begin('area', h);
+      if (webcam) get().setFaceCamVisible(true);
     } catch (err) {
       console.error('Alan kaydı başlatılamadı', err);
     }
@@ -200,8 +224,19 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
   async toggleFaceCam() {
     const next = !get().faceCamVisible;
     if (next) {
+      // Kamera açılıyor: stream al ve encoder'a enjekte et.
+      const stream = await getWebcamStream();
+      if (stream && handle) {
+        handle.setWebcamStream(stream, get().faceCamShape);
+      }
       await window.api.recording.showFaceCam();
     } else {
+      // Kamera kapanıyor: encoder'a null gönder, stream'i durdur.
+      handle?.setWebcamStream(null, get().faceCamShape);
+      if (webcamStream) {
+        webcamStream.getTracks().forEach((t) => t.stop());
+        webcamStream = null;
+      }
       await window.api.recording.hideFaceCam();
     }
     set({ faceCamVisible: next });
@@ -209,6 +244,7 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
 
   async setFaceCamShape(shape) {
     set({ faceCamShape: shape });
+    handle?.setWebcamShape(shape);
     await window.api.recording.setFaceCamShape(shape);
   },
 
@@ -248,6 +284,10 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
       timerId = null;
     }
     pausedAtElapsedMs = 0;
+    if (webcamStream) {
+      webcamStream.getTracks().forEach((t) => t.stop());
+      webcamStream = null;
+    }
     set({
       active: false,
       saving: false,
