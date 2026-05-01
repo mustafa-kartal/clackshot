@@ -1,13 +1,14 @@
-# ClackShot
+<div align="center">
+  <img src="./resources/icons/logo-dark.png" alt="ClackShot" width="320" />
+  <p>Modern, minimal, cross-platform screenshot and screen recording tool.</p>
 
-Modern, minimal, cross-platform screenshot and screen recording tool.
+  [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-blue)](https://github.com/mustafa-kartal/clackshot/releases/latest)
+  [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
+  [![Release](https://img.shields.io/github/v/release/mustafa-kartal/clackshot?label=latest)](https://github.com/mustafa-kartal/clackshot/releases/latest)
+  [![Downloads](https://img.shields.io/github/downloads/mustafa-kartal/clackshot/total?label=downloads)](https://github.com/mustafa-kartal/clackshot/releases)
 
-[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-blue)](https://github.com/mustafa-kartal/clackshot/releases/latest)
-[![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
-[![Release](https://img.shields.io/github/v/release/mustafa-kartal/clackshot?label=latest)](https://github.com/mustafa-kartal/clackshot/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/mustafa-kartal/clackshot/total?label=downloads)](https://github.com/mustafa-kartal/clackshot/releases)
-
-[Türkçe](./README-TR.md)
+  [Türkçe](./README-TR.md)
+</div>
 
 ## Features
 
