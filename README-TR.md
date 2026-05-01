@@ -46,13 +46,6 @@ npm run build:win     # Windows (nsis x64)
 npm run build:linux   # Linux (AppImage + deb)
 ```
 
-### Release Yayınlama
-
-```bash
-export GH_TOKEN=your_github_token
-npm run build:mac -- --publish always
-```
-
 > macOS notarization için `APPLE_ID` ve `APPLE_APP_SPECIFIC_PASSWORD` env değişkenlerini ayarlayın, `electron-builder.yml` içinde `notarize: true` yapın.
 
 ## Mimari
