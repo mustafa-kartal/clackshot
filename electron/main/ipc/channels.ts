@@ -39,6 +39,7 @@ export const IPC = {
   events: {
     captureCompleted: 'event:capture-completed',
     overlayEnterRecording: 'event:overlay-enter-recording',
+    overlaySetPurpose: 'event:overlay-set-purpose',
     faceCamShapeChanged: 'event:face-cam-shape-changed',
     triggerRecord: 'event:trigger-record',
   },
