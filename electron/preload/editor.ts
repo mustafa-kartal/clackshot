@@ -3,6 +3,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 import { IPC } from '../main/ipc/channels';
 import type { IpcApi } from '../../src/shared/ipc-types';
 import type { CaptureResult } from '../../src/shared/types';
+import type { FaceCamBoundsResult } from '../../src/shared/ipc-types';
 
 const api: IpcApi = {
   capture: {
@@ -24,6 +25,9 @@ const api: IpcApi = {
     showFaceCam: () => ipcRenderer.invoke(IPC.recording.showFaceCam),
     hideFaceCam: () => ipcRenderer.invoke(IPC.recording.hideFaceCam),
     setFaceCamShape: (shape) => ipcRenderer.invoke(IPC.recording.setFaceCamShape, shape),
+    getFaceCamBounds: (): Promise<FaceCamBoundsResult | null> => ipcRenderer.invoke(IPC.recording.getFaceCamBounds),
+    hideFaceCamForRecording: () => ipcRenderer.invoke(IPC.recording.hideFaceCamForRecording),
+    showFaceCamForRecording: () => ipcRenderer.invoke(IPC.recording.showFaceCamForRecording),
     countdown: (seconds) => ipcRenderer.invoke(IPC.recording.countdown, seconds),
   },
   overlay: {
@@ -39,6 +43,9 @@ const api: IpcApi = {
     set: (key, value) => ipcRenderer.invoke(IPC.config.set, key, value),
     setShortcut: (key, accel) => ipcRenderer.invoke(IPC.config.setShortcut, key, accel),
     pickSaveDirectory: () => ipcRenderer.invoke(IPC.config.pickSaveDirectory),
+  },
+  shell: {
+    showItemInFolder: (path) => ipcRenderer.invoke(IPC.shell.showItemInFolder, path),
   },
   on: {
     captureCompleted(handler) {

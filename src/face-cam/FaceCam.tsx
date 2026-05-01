@@ -9,6 +9,8 @@ declare global {
   interface Window {
     faceCamApi: {
       onShapeChange(handler: (shape: FaceCamShape) => void): () => void;
+      onStopCamera(handler: () => void): () => void;
+      onStartCamera(handler: () => void): () => void;
     };
   }
 }
@@ -24,49 +26,51 @@ function radiusFor(shape: FaceCamShape): string {
 
 export function FaceCam() {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [shape, setShape] = useState<FaceCamShape>('circle');
 
   useEffect(() => {
     const off = window.faceCamApi?.onShapeChange?.(setShape);
-    return () => {
-      off?.();
-    };
+    return () => { off?.(); };
   }, []);
 
-  useEffect(() => {
-    let stream: MediaStream | null = null;
+  const startCamera = () => {
     let cancelled = false;
-
     navigator.mediaDevices
       .getUserMedia({
-        video: {
-          width: { ideal: 480 },
-          height: { ideal: 480 },
-          frameRate: { ideal: 30 },
-          facingMode: 'user',
-        },
+        video: { width: { ideal: 480 }, height: { ideal: 480 }, frameRate: { ideal: 30 }, facingMode: 'user' },
         audio: false,
       })
       .then((s) => {
-        if (cancelled) {
-          s.getTracks().forEach((t) => t.stop());
-          return;
-        }
-        stream = s;
-        if (videoRef.current) {
-          videoRef.current.srcObject = s;
-        }
+        if (cancelled) { s.getTracks().forEach((t) => t.stop()); return; }
+        streamRef.current = s;
+        if (videoRef.current) videoRef.current.srcObject = s;
       })
       .catch((err) => {
         console.error('Webcam erişimi başarısız', err);
         setError(String(err?.message ?? err));
       });
+    return () => { cancelled = true; };
+  };
 
+  const stopCamera = () => {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
+  };
+
+  useEffect(() => {
+    const cancel = startCamera();
+    const offStop = window.faceCamApi?.onStopCamera?.(stopCamera);
+    const offStart = window.faceCamApi?.onStartCamera?.(startCamera);
     return () => {
-      cancelled = true;
-      stream?.getTracks().forEach((t) => t.stop());
+      cancel?.();
+      stopCamera();
+      offStop?.();
+      offStart?.();
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

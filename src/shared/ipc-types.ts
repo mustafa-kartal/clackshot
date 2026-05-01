@@ -11,6 +11,15 @@ import type {
   SourceInfo,
 } from './types';
 
+export interface FaceCamBoundsResult {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  scaleFactor: number;
+  shape: FaceCamShape;
+}
+
 export interface IpcApi {
   capture: {
     screenshot(opts: ScreenshotOptions): Promise<CaptureResult>;
@@ -31,6 +40,9 @@ export interface IpcApi {
     showFaceCam(): Promise<void>;
     hideFaceCam(): Promise<void>;
     setFaceCamShape(shape: FaceCamShape): Promise<void>;
+    getFaceCamBounds(): Promise<FaceCamBoundsResult | null>;
+    hideFaceCamForRecording(): Promise<void>;
+    showFaceCamForRecording(): Promise<void>;
     countdown(seconds: number): Promise<void>;
   };
   overlay: {
@@ -49,6 +61,9 @@ export interface IpcApi {
       accelerator: string,
     ): Promise<{ ok: boolean; error?: string }>;
     pickSaveDirectory(): Promise<string | null>;
+  };
+  shell: {
+    showItemInFolder(path: string): Promise<void>;
   };
   on: {
     captureCompleted(handler: (result: CaptureResult) => void): () => void;

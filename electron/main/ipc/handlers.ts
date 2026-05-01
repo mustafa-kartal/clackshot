@@ -1,6 +1,6 @@
 // Tüm ipcMain.handle kayıtları tek noktada.
 // Her handler küçük ve typed; iş mantığı ilgili modülde.
-import { ipcMain, clipboard, nativeImage, dialog, BrowserWindow } from 'electron';
+import { ipcMain, clipboard, nativeImage, dialog, BrowserWindow, shell } from 'electron';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { IPC } from './channels';
@@ -26,6 +26,10 @@ import {
   closeFaceCamWindow,
   createFaceCamWindow,
   setFaceCamShape,
+  getFaceCamBounds,
+  getFaceCamShape,
+  hideFaceCamForRecording,
+  showFaceCamForRecording,
 } from '../windows/face-cam';
 import { showCountdown } from '../windows/countdown';
 import type { FaceCamShape } from '../../../src/shared/types';
@@ -87,7 +91,13 @@ export function registerIpcHandlers(): void {
       const defaultName = suggestedName || `screenshot-${Date.now()}.png`;
       const { canceled, filePath } = await dialog.showSaveDialog({
         defaultPath: dir ? join(dir, defaultName) : defaultName,
-        filters: [{ name: 'PNG', extensions: ['png'] }],
+        filters: [
+          { name: 'PNG', extensions: ['png'] },
+          { name: 'JPEG', extensions: ['jpg', 'jpeg'] },
+          { name: 'WebP', extensions: ['webp'] },
+          { name: 'BMP', extensions: ['bmp'] },
+          { name: 'Tüm Resimler', extensions: ['png', 'jpg', 'jpeg', 'webp', 'bmp'] },
+        ],
       });
       if (canceled || !filePath) return null;
       await writeFile(filePath, Buffer.from(png));
@@ -151,11 +161,27 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(IPC.recording.setFaceCamShape, async (_e, shape: FaceCamShape) => {
     setFaceCamShape(shape);
   });
+  ipcMain.handle(IPC.recording.getFaceCamBounds, async () => {
+    const bounds = getFaceCamBounds();
+    if (!bounds) return null;
+    return { ...bounds, shape: getFaceCamShape() };
+  });
+  ipcMain.handle(IPC.recording.hideFaceCamForRecording, async () => {
+    hideFaceCamForRecording();
+  });
+  ipcMain.handle(IPC.recording.showFaceCamForRecording, async () => {
+    showFaceCamForRecording();
+  });
   ipcMain.handle(IPC.recording.countdown, async (_e, seconds: number) => {
     await showCountdown(seconds);
   });
   ipcMain.handle(IPC.editor.close, async (e) => {
     BrowserWindow.fromWebContents(e.sender)?.close();
+  });
+
+  // -- shell
+  ipcMain.handle(IPC.shell.showItemInFolder, async (_e, path: string) => {
+    shell.showItemInFolder(path);
   });
 
   // -- permissions

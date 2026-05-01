@@ -2,7 +2,7 @@
 // kısayol değerlerini görmesi için tek kaynak. App mount'ta bir kez yüklenir,
 // setShortcut başarılı olduğunda lokal state de güncellenir.
 import { create } from 'zustand';
-import type { AppConfig, VideoFps, VideoQuality, VideoResolution } from '../../shared/types';
+import type { AppConfig, ImageFormat, VideoFps, VideoQuality, VideoResolution } from '../../shared/types';
 
 type Shortcuts = AppConfig['shortcuts'];
 type Theme = AppConfig['theme'];
@@ -10,6 +10,7 @@ type Theme = AppConfig['theme'];
 interface ConfigState {
   shortcuts: Shortcuts | null;
   saveDirectory: string | null;
+  defaultFormat: ImageFormat;
   videoResolution: VideoResolution;
   videoFps: VideoFps;
   videoQuality: VideoQuality;
@@ -21,6 +22,7 @@ interface ConfigState {
     accelerator: string,
   ): Promise<{ ok: boolean; error?: string }>;
   pickSaveDirectory(): Promise<string | null>;
+  setDefaultFormat(v: ImageFormat): Promise<void>;
   setVideoResolution(v: VideoResolution): Promise<void>;
   setVideoFps(v: VideoFps): Promise<void>;
   setVideoQuality(v: VideoQuality): Promise<void>;
@@ -30,6 +32,7 @@ interface ConfigState {
 export const useConfigStore = create<ConfigState>((set, get) => ({
   shortcuts: null,
   saveDirectory: null,
+  defaultFormat: 'png',
   videoResolution: '1080p',
   videoFps: 30,
   videoQuality: 'medium',
@@ -40,6 +43,7 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
     set({
       shortcuts: cfg.shortcuts,
       saveDirectory: cfg.saveDirectory,
+      defaultFormat: cfg.defaultFormat,
       videoResolution: cfg.videoResolution,
       videoFps: cfg.videoFps,
       videoQuality: cfg.videoQuality,
@@ -59,6 +63,10 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
     const dir = await window.api.config.pickSaveDirectory();
     if (dir) set({ saveDirectory: dir });
     return dir;
+  },
+  async setDefaultFormat(v) {
+    await window.api.config.set('defaultFormat', v);
+    set({ defaultFormat: v });
   },
   async setVideoResolution(v) {
     await window.api.config.set('videoResolution', v);

@@ -52,9 +52,11 @@ export interface RecentItem {
   name: string;
 }
 
+export type ImageFormat = 'png' | 'jpg' | 'webp' | 'bmp';
+
 export interface AppConfig {
   theme: 'dark' | 'light' | 'system';
-  defaultFormat: 'png' | 'jpg';
+  defaultFormat: ImageFormat;
   saveDirectory: string | null;
   copyToClipboardOnCapture: boolean;
   videoResolution: VideoResolution;

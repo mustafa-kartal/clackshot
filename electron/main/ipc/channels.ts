@@ -20,6 +20,9 @@ export const IPC = {
     showFaceCam: 'recording:show-face-cam',
     hideFaceCam: 'recording:hide-face-cam',
     setFaceCamShape: 'recording:set-face-cam-shape',
+    getFaceCamBounds: 'recording:get-face-cam-bounds',
+    hideFaceCamForRecording: 'recording:hide-face-cam-for-recording',
+    showFaceCamForRecording: 'recording:show-face-cam-for-recording',
     countdown: 'recording:countdown',
   },
   overlay: {
@@ -36,10 +39,16 @@ export const IPC = {
     setShortcut: 'config:set-shortcut',
     pickSaveDirectory: 'config:pick-save-directory',
   },
+  shell: {
+    showItemInFolder: 'shell:show-item-in-folder',
+  },
   events: {
     captureCompleted: 'event:capture-completed',
     overlayEnterRecording: 'event:overlay-enter-recording',
+    overlaySetPurpose: 'event:overlay-set-purpose',
     faceCamShapeChanged: 'event:face-cam-shape-changed',
+    faceCamStopCamera: 'event:face-cam-stop-camera',
+    faceCamStartCamera: 'event:face-cam-start-camera',
     triggerRecord: 'event:trigger-record',
   },
 } as const;

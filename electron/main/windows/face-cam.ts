@@ -23,6 +23,32 @@ export function setFaceCamShape(shape: FaceCamShape): void {
   }
 }
 
+export function getFaceCamBounds(): { x: number; y: number; width: number; height: number; scaleFactor: number } | null {
+  if (!faceCamWindow || faceCamWindow.isDestroyed()) return null;
+  const bounds = faceCamWindow.getBounds(); // CSS piksel (logical)
+  const display = screen.getDisplayMatching(bounds);
+  return { ...bounds, scaleFactor: display.scaleFactor };
+}
+
+export function getFaceCamShape(): FaceCamShape {
+  return currentShape;
+}
+
+// Kayıt sırasında face cam penceresinin kamerası durdurulur (encoder kendi stream'ini açar).
+export function hideFaceCamForRecording(): void {
+  if (faceCamWindow && !faceCamWindow.isDestroyed()) {
+    faceCamWindow.webContents.send(IPC.events.faceCamStopCamera);
+    faceCamWindow.hide();
+  }
+}
+
+export function showFaceCamForRecording(): void {
+  if (faceCamWindow && !faceCamWindow.isDestroyed()) {
+    faceCamWindow.showInactive();
+    faceCamWindow.webContents.send(IPC.events.faceCamStartCamera);
+  }
+}
+
 export function createFaceCamWindow(): BrowserWindow {
   if (faceCamWindow && !faceCamWindow.isDestroyed()) {
     faceCamWindow.show();

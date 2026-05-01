@@ -3,7 +3,7 @@
 // içeriği. İçerik dikeyde scroll edebilir; modal yüksekliği sabit.
 import { useEffect, useState, type ReactNode } from 'react';
 import { useConfigStore } from '../store/configStore';
-import type { AppConfig, VideoFps, VideoQuality, VideoResolution } from '../../shared/types';
+import type { AppConfig, ImageFormat, VideoFps, VideoQuality, VideoResolution } from '../../shared/types';
 
 type ShortcutKey =
   | 'captureArea'
@@ -144,6 +144,8 @@ function GeneralPane() {
   const setTheme = useConfigStore((s) => s.setTheme);
   const saveDirectory = useConfigStore((s) => s.saveDirectory);
   const pickSaveDirectory = useConfigStore((s) => s.pickSaveDirectory);
+  const defaultFormat = useConfigStore((s) => s.defaultFormat);
+  const setDefaultFormat = useConfigStore((s) => s.setDefaultFormat);
 
   return (
     <div className="flex flex-col gap-7">
@@ -171,6 +173,20 @@ function GeneralPane() {
             preview="system"
           />
         </div>
+      </Section>
+
+      <Section title="Varsayılan Format" hint="Kaydet butonuna basıldığında önerilen dosya uzantısı.">
+        <SelectField
+          label="Format"
+          value={defaultFormat}
+          onChange={(v) => void setDefaultFormat(v as ImageFormat)}
+          options={[
+            { value: 'png', label: 'PNG — kayıpsız, şeffaflık destekli' },
+            { value: 'jpg', label: 'JPEG — küçük boyut, fotoğraf için ideal' },
+            { value: 'webp', label: 'WebP — modern, yüksek sıkıştırma' },
+            { value: 'bmp', label: 'BMP — sıkıştırmasız bitmap' },
+          ]}
+        />
       </Section>
 
       <Section title="Kayıt Klasörü" hint="Yeni ekran görüntüsü ve kayıtlar varsayılan olarak buraya kaydedilir.">

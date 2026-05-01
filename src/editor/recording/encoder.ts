@@ -294,7 +294,14 @@ function buildPipeline(
       resizeCtx = resizeCanvas.getContext('2d');
     }
     if (!resizeCtx) return frame;
-    resizeCtx.drawImage(frame, 0, 0, outWidth, outHeight);
+    // Aspect ratio'yu koruyarak letterbox/pillarbox ile çiz.
+    const scale = Math.min(outWidth / frame.displayWidth, outHeight / frame.displayHeight);
+    const dw = frame.displayWidth * scale;
+    const dh = frame.displayHeight * scale;
+    const dx = (outWidth - dw) / 2;
+    const dy = (outHeight - dh) / 2;
+    resizeCtx.clearRect(0, 0, outWidth, outHeight);
+    resizeCtx.drawImage(frame, dx, dy, dw, dh);
     const ts = frame.timestamp;
     frame.close();
     return new VideoFrame(resizeCanvas, { timestamp: ts });
@@ -739,10 +746,13 @@ function drawWebcamOverlay(
   const scaleX = outW / capNativeW;
   const scaleY = outH / capNativeH;
 
+  // Face cam kare olmalı — scaleX/scaleY farklıysa (ekran oranı ≠ output oranı)
+  // ortalama scale kullan ki daire elipse dönüşmesin.
+  const uniformScale = Math.sqrt(scaleX * scaleY);
   const dx = relX * scaleX;
   const dy = relY * scaleY;
-  const dw = fcNativeW * scaleX;
-  const dh = fcNativeH * scaleY;
+  const dw = fcNativeW * uniformScale;
+  const dh = fcNativeH * uniformScale;
 
   ctx.save();
   // Shape'e göre clip path uygula.
@@ -761,9 +771,18 @@ function drawWebcamOverlay(
   ctx.strokeStyle = 'rgba(255,255,255,0.95)';
   ctx.lineWidth = Math.max(2, dw * 0.014);
   ctx.stroke();
-  // Webcam video — yatay ayna (FaceCam.tsx ile tutarlı)
+  // Webcam video — object-fit: cover mantığıyla çiz (FaceCam.tsx ile tutarlı)
+  const vw = webcamVideo.videoWidth || dw;
+  const vh = webcamVideo.videoHeight || dh;
+  const scale = Math.max(dw / vw, dh / vh);
+  const sw = dw / scale;
+  const sh = dh / scale;
+  const sx = (vw - sw) / 2;
+  const sy = (vh - sh) / 2;
+
+  // Yatay ayna için translate
   ctx.translate(dx + dw, dy);
   ctx.scale(-1, 1);
-  ctx.drawImage(webcamVideo, 0, 0, dw, dh);
+  ctx.drawImage(webcamVideo, sx, sy, sw, sh, 0, 0, dw, dh);
   ctx.restore();
 }

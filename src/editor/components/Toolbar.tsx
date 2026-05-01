@@ -7,7 +7,9 @@
 // daha sağlam.
 import { useEffect, type ReactNode } from 'react';
 import { useEditorStore, type Shape, type Tool } from '../store/editorStore';
+import { useConfigStore } from '../store/configStore';
 import { toast } from '../store/toastStore';
+import type { ImageFormat } from '../../shared/types';
 
 const TOOLS: Array<{ id: Tool; label: string; icon: ReactNode }> = [
   { id: 'select', label: 'Seç', icon: <SelectIcon /> },
@@ -35,6 +37,7 @@ export function Toolbar() {
   const setStrokeWidth = useEditorStore((s) => s.setStrokeWidth);
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
+  const defaultFormat = useConfigStore((s) => s.defaultFormat) ?? 'png';
 
   // Klavye kısayolları: Cmd/Ctrl+Z undo, Cmd+Shift+Z redo, Cmd+S kaydet,
   // Cmd+C kopyala, Esc kapat.
@@ -76,13 +79,13 @@ export function Toolbar() {
   if (!image) return null;
 
   const onSave = async () => {
-    const buf = await flattenStageToPng();
+    const buf = await flattenStage(defaultFormat);
     if (!buf) {
       toast.error('Görüntü hazırlanamadı');
       return;
     }
     try {
-      const path = await window.api.editor.saveImage(buf, `screenshot-${image.capturedAt}.png`);
+      const path = await window.api.editor.saveImage(buf, `screenshot-${image.capturedAt}.${defaultFormat}`);
       if (path) {
         const fileName = path.split('/').pop() ?? path;
         toast.success(`Kaydedildi: ${fileName}`, { label: 'Klasörü Göster', onClick: () => window.api.shell.showItemInFolder(path) });
@@ -94,7 +97,7 @@ export function Toolbar() {
   };
 
   const onCopy = async () => {
-    const buf = await flattenStageToPng();
+    const buf = await flattenStage('png');
     if (!buf) {
       toast.error('Görüntü hazırlanamadı');
       return;
@@ -439,16 +442,21 @@ function CloseIcon() {
 
 // --- Flatten ---
 
-// Annotation'lı / annotation'sız mevcut görüntüyü PNG ArrayBuffer'a çevirir.
-// Hızlı yol: hiç shape yoksa orijinal capture buffer'ını döndür.
-// Yavaş yol: native canvas üzerine image + shape'leri kendin compose et.
-async function flattenStageToPng(): Promise<ArrayBuffer | null> {
+const FORMAT_MIME: Record<ImageFormat, string> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  webp: 'image/webp',
+  bmp: 'image/bmp',
+};
+
+// Annotation'lı / annotation'sız mevcut görüntüyü verilen formatta ArrayBuffer'a çevirir.
+// Hızlı yol: hiç shape yoksa ve format PNG ise orijinal capture buffer'ını döndür.
+// Yavaş yol: native canvas üzerine image + shape'leri compose et.
+async function flattenStage(format: ImageFormat): Promise<ArrayBuffer | null> {
   const { image, shapes } = useEditorStore.getState();
   if (!image) return null;
 
-  if (shapes.length === 0) {
-    // Capture buffer'ı zaten transferable bir ArrayBuffer kopyası — doğrudan
-    // kopyala/kaydet için en güvenilir yol.
+  if (shapes.length === 0 && format === 'png') {
     return image.buffer.slice(0);
   }
 
@@ -465,8 +473,9 @@ async function flattenStageToPng(): Promise<ArrayBuffer | null> {
     drawShape(ctx, s, imgEl);
   }
 
+  const mime = FORMAT_MIME[format] ?? 'image/png';
   const blob = await new Promise<Blob | null>((resolve) => {
-    canvas.toBlob((b) => resolve(b), 'image/png');
+    canvas.toBlob((b) => resolve(b), mime);
   });
   if (!blob) return null;
   return await blob.arrayBuffer();
