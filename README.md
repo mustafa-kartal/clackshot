@@ -1,19 +1,30 @@
 # ClackShot
 
-Modern, minimal, çapraz platform ekran görüntüsü ve ekran kaydı uygulaması.
+Modern, minimal, cross-platform ekran görüntüsü ve ekran kaydı uygulaması.
 
-## Phase 1 (MVP) — bu commit
+![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-blue)
+![License](https://img.shields.io/github/license/mustafa-kartal/clackshot)
+![Version](https://img.shields.io/github/v/release/mustafa-kartal/clackshot)
 
-- [x] Electron + Vite + React + TypeScript + Tailwind boilerplate
-- [x] Iki ayrı BrowserWindow: overlay (saydam fullscreen) + editor
-- [x] `desktopCapturer` üzerinden tam ekran capture
-- [x] Sürükle-seç alan capture (overlay)
-- [x] Pencere capture (Phase 1: ilk pencere fallback)
-- [x] PNG kayıt + clipboard kopyalama
-- [x] Sistem tray ikonu
-- [x] Global kısayollar (Cmd/Ctrl+Shift+3/4/5)
-- [x] macOS izin akışı (TCC)
-- [x] Tek instance lock + güvenlik kilitleri (yeni pencere açmayı engelle, navigation kilidi)
+## Özellikler
+
+- **Ekran görüntüsü** — tam ekran, belirli alan seçimi, pencere capture
+- **Ekran kaydı** — MediaRecorder tabanlı, MP4 çıktı
+- **Annotation editörü** — Konva tabanlı, metin, şekil, ok ekleme
+- **Face cam** — kayıt sırasında kamera overlay
+- **Clipboard** — capture sonrası otomatik panoya kopyalama
+- **PNG kayıt** — istediğin konuma dışa aktar
+- **Sistem tray** — arka planda çalışır, her zaman erişilebilir
+- **Global kısayollar** — uygulamaya geçmeden tetikle
+- **Otomatik güncelleme** — GitHub Releases üzerinden
+
+## Kısayollar
+
+| Eylem | macOS | Windows / Linux |
+|---|---|---|
+| Tam ekran capture | `Cmd+Shift+3` | `Ctrl+Shift+3` |
+| Alan seçerek capture | `Cmd+Shift+4` | `Ctrl+Shift+4` |
+| Ekran kaydı başlat/durdur | `Cmd+Shift+5` | `Ctrl+Shift+5` |
 
 ## Geliştirme
 
@@ -22,27 +33,43 @@ npm install
 npm run dev
 ```
 
-İlk açılışta macOS sistem ayarlarından **Privacy & Security → Screen Recording** altında uygulamaya izin vermeniz gerekir. İlk `desktopCapturer` çağrısında prompt otomatik tetiklenecek; ancak izin "kalıcı" olabilmesi için uygulamanın imzalı olması (notarization) gerekir. Geliştirmede prompt her seferinde tekrar çıkabilir — bu beklenen davranıştır.
+> **macOS:** İlk açılışta System Settings → Privacy & Security → **Screen Recording** altında uygulamaya izin verin.
 
 ## Build
 
 ```bash
-npm run build:mac
-npm run build:win
-npm run build:linux
+npm run build:mac     # macOS (dmg + zip, x64 + arm64)
+npm run build:win     # Windows (nsis x64)
+npm run build:linux   # Linux (AppImage + deb)
 ```
 
-Notarize için `APPLE_ID` ve `APPLE_APP_SPECIFIC_PASSWORD` env değişkenlerini ayarlayın ve `electron-builder.yml` içinde `notarize: true` yapın.
+### Release Yayınlama
+
+```bash
+export GH_TOKEN=your_github_token
+npm run build:mac -- --publish always
+```
+
+> macOS notarization için `APPLE_ID` ve `APPLE_APP_SPECIFIC_PASSWORD` env değişkenlerini ayarlayın, `electron-builder.yml` içinde `notarize: true` yapın.
 
 ## Mimari
 
-`electron/` ana süreç ve preload'lar (Node tarafı), `src/` renderer (React + Tailwind). `src/shared/` her iki tarafta da kullanılan saf tip dosyalarını içerir.
+```
+electron/
+  main/         # Ana süreç (Node) — IPC, tray, shortcuts, updater
+  preload/      # Renderer'a güvenli köprü
+src/
+  editor/       # Ana editör penceresi (React + Tailwind + Konva)
+  overlay/      # Saydam fullscreen capture alanı
+  face-cam/     # Kamera overlay penceresi
+  splash/       # Başlangıç ekranı
+  shared/       # Ortak tipler (main + renderer)
+```
 
-Ayrıntılar için commit mesajındaki mimari tartışmasına bakın.
+## Katkı
 
-## Sonraki Adımlar
+Pull request'ler memnuniyetle karşılanır. Büyük değişiklikler için önce bir issue açın.
 
-- Phase 2: MediaRecorder ile ekran kaydı + FFmpeg transcode
-- Phase 3: Konva tabanlı annotation editörü
-- Phase 4: Cold start optimizasyonu, worker thread'ler
-- Phase 5: electron-updater + CI signing/notarization matrisi
+## Lisans
+
+[MIT](LICENSE)
