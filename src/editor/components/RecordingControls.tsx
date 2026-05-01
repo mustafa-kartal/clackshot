@@ -59,7 +59,7 @@ export function RecordingControls({ embedded = false }: RecordingControlsProps) 
       const path = await window.api.recording.saveVideo(buf, `recording-${Date.now()}.mp4`);
       if (path) {
         const fileName = path.split('/').pop() ?? path;
-        toast.success(`Kaydedildi: ${fileName}`);
+        toast.success(`Kaydedildi: ${fileName}`, { label: 'Klasörü Göster', onClick: () => window.api.shell.showItemInFolder(path) });
       }
     } catch (err) {
       console.error('Recording stop hatası', err);

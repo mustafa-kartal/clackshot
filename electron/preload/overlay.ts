@@ -22,6 +22,11 @@ const api = {
       ipcRenderer.on(IPC.events.overlayEnterRecording, wrapped);
       return () => ipcRenderer.removeListener(IPC.events.overlayEnterRecording, wrapped);
     },
+    overlaySetPurpose(handler: (purpose: string) => void): () => void {
+      const wrapped = (_e: unknown, purpose: string) => handler(purpose);
+      ipcRenderer.on(IPC.events.overlaySetPurpose, wrapped);
+      return () => ipcRenderer.removeListener(IPC.events.overlaySetPurpose, wrapped);
+    },
   },
 };
 

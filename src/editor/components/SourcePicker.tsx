@@ -95,9 +95,12 @@ export function SourcePicker({ open, type, title, onCancel, onPick }: SourcePick
           )}
         </div>
 
-        <div className="px-5 py-3 border-t border-surface-border flex justify-end">
+        <div className="px-5 py-3 border-t border-surface-border flex items-center justify-between gap-4">
+          <p className="text-xs text-fg-subtle">
+            Fullscreen uygulamalar listede görünmez. Pencereyi fullscreen'den çıkarıp tekrar deneyin.
+          </p>
           <button
-            className="px-3 py-1.5 text-sm rounded-lg text-fg hover:bg-surface-hover"
+            className="px-3 py-1.5 text-sm rounded-lg text-fg hover:bg-surface-hover shrink-0"
             onClick={onCancel}
           >
             İptal

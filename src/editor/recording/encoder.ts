@@ -8,7 +8,19 @@
 //                                                                       ↓
 //                                                                  EncodedChunk → mp4-muxer
 import { Muxer, ArrayBufferTarget } from 'mp4-muxer';
-import type { Rect, VideoQuality, VideoResolution, VideoFps } from '../../shared/types';
+import type { Rect, VideoQuality, VideoResolution, VideoFps, FaceCamShape } from '../../shared/types';
+
+export interface WebcamOverlay {
+  stream: MediaStream;
+  // Face cam penceresinin CSS piksel (logical) ekran koordinatları.
+  screenX: number;
+  screenY: number;
+  screenW: number;
+  screenH: number;
+  shape: FaceCamShape;
+  // display scaleFactor — CSS piksel → native piksel dönüşümü için.
+  scaleFactor: number;
+}
 
 export interface RecorderHandle {
   stop(): Promise<Blob>;
@@ -21,6 +33,8 @@ export interface RecorderHandle {
   isMicMuted(): boolean;
   setMicMuted(muted: boolean): void;
   getMicLevel(): number;
+  // Kayıt sırasında webcam overlay'i aç/kapat.
+  setWebcamEnabled(enabled: boolean): void;
 }
 
 export interface EncoderOptions {
@@ -32,6 +46,7 @@ export interface EncoderOptions {
 
 interface StartOptions extends EncoderOptions {
   sourceId: string;
+  webcam?: WebcamOverlay;
 }
 
 // Çözünürlük preset → hedef yükseklik. Genişlik kaynak en-boy oranından türetilir.
@@ -419,10 +434,12 @@ interface PipelineHandleConfig {
   audioContext: AudioContext | null;
   analyser: AnalyserNode | null;
   extraCleanup?: () => void;
+  // Webcam aç/kapat için dışarıdan set edilebilen ref.
+  webcamEnabledRef?: { value: boolean };
 }
 
 function buildHandle(cfg: PipelineHandleConfig): RecorderHandle {
-  const { pipeline, videoTrack, audioStream, audioContext, analyser, extraCleanup } = cfg;
+  const { pipeline, videoTrack, audioStream, audioContext, analyser, extraCleanup, webcamEnabledRef } = cfg;
   const levelBuffer = analyser ? new Uint8Array(analyser.fftSize) : null;
   let stopped = false;
   let paused = false;
@@ -467,6 +484,9 @@ function buildHandle(cfg: PipelineHandleConfig): RecorderHandle {
       }
       return Math.sqrt(sum / levelBuffer.length);
     },
+    setWebcamEnabled(enabled: boolean) {
+      if (webcamEnabledRef) webcamEnabledRef.value = enabled;
+    },
     cancel() {
       if (stopped) return;
       stopped = true;
@@ -497,31 +517,6 @@ function computeBitrate(w: number, h: number, fps: number, quality: VideoQuality
   return Math.round(w * h * fps * bpp);
 }
 
-// Tam ekran / pencere kaydı.
-export async function startScreenRecording(opts: StartOptions): Promise<RecorderHandle> {
-  const screenStream = await captureDesktopStream(opts.sourceId, opts.fps);
-  const videoTrack = screenStream.getVideoTracks()[0] as MediaStreamTrack;
-  const settings = videoTrack.getSettings();
-  const sourceW = settings.width ?? 1920;
-  const sourceH = settings.height ?? 1080;
-  const { width, height } = computeOutputSize(sourceW, sourceH, opts.resolution);
-  const bitrate = computeBitrate(width, height, opts.fps, opts.quality);
-
-  const mic = await setupMicrophone(opts.withMicrophone);
-  const audioTrack =
-    (mic.micStream?.getAudioTracks()[0] as MediaStreamTrack | undefined) ?? null;
-
-  const pipeline = buildPipeline(videoTrack, audioTrack, width, height, opts.fps, bitrate);
-
-  return buildHandle({
-    pipeline,
-    videoTrack,
-    audioStream: mic.micStream,
-    audioContext: mic.audioContext,
-    analyser: mic.analyser,
-  });
-}
-
 // Alan kaydı: ekran stream'ini canvas'a crop edip canvas.captureStream'inden
 // yeni bir video track çıkarıyoruz. Bu track'i WebCodecs pipeline'ı tüketir.
 export async function startAreaRecording(
@@ -529,6 +524,7 @@ export async function startAreaRecording(
   rect: Rect,
   pixelRatio: number,
   opts: EncoderOptions,
+  webcam?: WebcamOverlay,
 ): Promise<RecorderHandle> {
   const screenStream = await captureDesktopStream(screenSourceId, opts.fps);
 
@@ -537,6 +533,16 @@ export async function startAreaRecording(
   video.playsInline = true;
   video.srcObject = screenStream;
   await video.play();
+
+  // Webcam video elementi — varsa.
+  let webcamVideo: HTMLVideoElement | null = null;
+  if (webcam) {
+    webcamVideo = document.createElement('video');
+    webcamVideo.muted = true;
+    webcamVideo.playsInline = true;
+    webcamVideo.srcObject = webcam.stream;
+    await webcamVideo.play();
+  }
 
   const sx = Math.max(0, Math.round(rect.x * pixelRatio));
   const sy = Math.max(0, Math.round(rect.y * pixelRatio));
@@ -555,6 +561,8 @@ export async function startAreaRecording(
     throw new Error('Canvas 2D context oluşturulamadı');
   }
 
+  const webcamEnabledRef = { value: !!webcam };
+
   let rafId: number | null = null;
   let running = true;
   const drawFrame = () => {
@@ -564,6 +572,9 @@ export async function startAreaRecording(
         ctx.drawImage(video, sx, sy, sw, sh, 0, 0, outW, outH);
       } catch {
         // ignore
+      }
+      if (webcamEnabledRef.value && webcam && webcamVideo && webcamVideo.readyState >= 2) {
+        drawWebcamOverlay(ctx, webcamVideo, webcam, rect, pixelRatio, outW, outH);
       }
     }
     rafId = requestAnimationFrame(drawFrame);
@@ -586,6 +597,7 @@ export async function startAreaRecording(
     screenStream.getTracks().forEach((t) => t.stop());
     cropStream.getTracks().forEach((t) => t.stop());
     video.srcObject = null;
+    if (webcamVideo) webcamVideo.srcObject = null;
   };
 
   return buildHandle({
@@ -595,5 +607,163 @@ export async function startAreaRecording(
     audioContext: mic.audioContext,
     analyser: mic.analyser,
     extraCleanup,
+    webcamEnabledRef,
   });
+}
+
+// Tam ekran / pencere kaydı — canvas-based pipeline + webcam overlay.
+// startScreenRecording'i de canvas'a taşıdık ki webcam overlay tüm modlarda çalışsın.
+export async function startScreenRecording(opts: StartOptions): Promise<RecorderHandle> {
+  if (!opts.webcam) {
+    // Webcam yok: orijinal basit pipeline (direkt track, canvas overhead yok).
+    const screenStream = await captureDesktopStream(opts.sourceId, opts.fps);
+    const videoTrack = screenStream.getVideoTracks()[0] as MediaStreamTrack;
+    const settings = videoTrack.getSettings();
+    const sourceW = settings.width ?? 1920;
+    const sourceH = settings.height ?? 1080;
+    const { width, height } = computeOutputSize(sourceW, sourceH, opts.resolution);
+    const bitrate = computeBitrate(width, height, opts.fps, opts.quality);
+    const mic = await setupMicrophone(opts.withMicrophone);
+    const audioTrack = (mic.micStream?.getAudioTracks()[0] as MediaStreamTrack | undefined) ?? null;
+    const pipeline = buildPipeline(videoTrack, audioTrack, width, height, opts.fps, bitrate);
+    return buildHandle({ pipeline, videoTrack, audioStream: mic.micStream, audioContext: mic.audioContext, analyser: mic.analyser });
+  }
+
+  // Webcam var: canvas-based composite pipeline.
+  const screenStream = await captureDesktopStream(opts.sourceId, opts.fps);
+  const rawTrack = screenStream.getVideoTracks()[0] as MediaStreamTrack;
+  const settings = rawTrack.getSettings();
+  const sourceW = settings.width ?? 1920;
+  const sourceH = settings.height ?? 1080;
+  const { width: outW, height: outH } = computeOutputSize(sourceW, sourceH, opts.resolution);
+
+  const video = document.createElement('video');
+  video.muted = true;
+  video.playsInline = true;
+  video.srcObject = screenStream;
+  await video.play();
+
+  const webcamVideo = document.createElement('video');
+  webcamVideo.muted = true;
+  webcamVideo.playsInline = true;
+  webcamVideo.srcObject = opts.webcam.stream;
+  await webcamVideo.play();
+
+  const canvas = document.createElement('canvas');
+  canvas.width = outW;
+  canvas.height = outH;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    screenStream.getTracks().forEach((t) => t.stop());
+    throw new Error('Canvas 2D context oluşturulamadı');
+  }
+
+  const pixelRatio = 1; // screen source zaten native piksel cinsinden gelir
+  const fullRect: Rect = { x: 0, y: 0, width: sourceW, height: sourceH };
+  const webcamEnabledRef = { value: true };
+
+  let rafId: number | null = null;
+  let running = true;
+  const drawFrame = () => {
+    if (!running) return;
+    if (video.readyState >= 2) {
+      try {
+        ctx.drawImage(video, 0, 0, sourceW, sourceH, 0, 0, outW, outH);
+      } catch { /* ignore */ }
+      if (webcamEnabledRef.value && webcamVideo.readyState >= 2 && opts.webcam) {
+        drawWebcamOverlay(ctx, webcamVideo, opts.webcam, fullRect, pixelRatio, outW, outH);
+      }
+    }
+    rafId = requestAnimationFrame(drawFrame);
+  };
+  rafId = requestAnimationFrame(drawFrame);
+
+  const compStream = canvas.captureStream(opts.fps);
+  const compTrack = compStream.getVideoTracks()[0] as MediaStreamTrack;
+  const bitrate = computeBitrate(outW, outH, opts.fps, opts.quality);
+
+  const mic = await setupMicrophone(opts.withMicrophone);
+  const audioTrack = (mic.micStream?.getAudioTracks()[0] as MediaStreamTrack | undefined) ?? null;
+  const pipeline = buildPipeline(compTrack, audioTrack, outW, outH, opts.fps, bitrate);
+
+  const extraCleanup = () => {
+    running = false;
+    if (rafId !== null) cancelAnimationFrame(rafId);
+    screenStream.getTracks().forEach((t) => t.stop());
+    compStream.getTracks().forEach((t) => t.stop());
+    video.srcObject = null;
+    webcamVideo.srcObject = null;
+  };
+
+  return buildHandle({
+    pipeline,
+    videoTrack: compTrack,
+    audioStream: mic.micStream,
+    audioContext: mic.audioContext,
+    analyser: mic.analyser,
+    extraCleanup,
+    webcamEnabledRef,
+  });
+}
+
+// Face cam'i canvas üzerine çizer.
+// Tüm giriş koordinatları CSS piksel (logical). scaleFactor ile native'e çevrilir,
+// sonra capture alanının native boyutuna göre output canvas'a map edilir.
+function drawWebcamOverlay(
+  ctx: OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D,
+  webcamVideo: HTMLVideoElement,
+  webcam: WebcamOverlay,
+  captureRect: Rect,      // CSS piksel
+  pixelRatio: number,     // overlay/CSS → native (area recording için)
+  outW: number,
+  outH: number,
+): void {
+  const sf = webcam.scaleFactor;
+
+  // Face cam ve capture rect → native piksel.
+  const fcNativeX = webcam.screenX * sf;
+  const fcNativeY = webcam.screenY * sf;
+  const fcNativeW = webcam.screenW * sf;
+  const fcNativeH = webcam.screenH * sf;
+
+  const capNativeX = captureRect.x * pixelRatio;
+  const capNativeY = captureRect.y * pixelRatio;
+  const capNativeW = captureRect.width * pixelRatio;
+  const capNativeH = captureRect.height * pixelRatio;
+
+  // Face cam'in capture alanı içindeki göreli konumu.
+  const relX = fcNativeX - capNativeX;
+  const relY = fcNativeY - capNativeY;
+
+  // Native capture → output canvas scale.
+  const scaleX = outW / capNativeW;
+  const scaleY = outH / capNativeH;
+
+  const dx = relX * scaleX;
+  const dy = relY * scaleY;
+  const dw = fcNativeW * scaleX;
+  const dh = fcNativeH * scaleY;
+
+  ctx.save();
+  // Shape'e göre clip path uygula.
+  if (webcam.shape === 'circle') {
+    ctx.beginPath();
+    ctx.arc(dx + dw / 2, dy + dh / 2, Math.min(dw, dh) / 2, 0, Math.PI * 2);
+    ctx.clip();
+  } else {
+    // rounded: köşe yarıçapı yaklaşık %9
+    const r = Math.min(dw, dh) * 0.09;
+    ctx.beginPath();
+    ctx.roundRect(dx, dy, dw, dh, r);
+    ctx.clip();
+  }
+  // Beyaz çerçeve
+  ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+  ctx.lineWidth = Math.max(2, dw * 0.014);
+  ctx.stroke();
+  // Webcam video — yatay ayna (FaceCam.tsx ile tutarlı)
+  ctx.translate(dx + dw, dy);
+  ctx.scale(-1, 1);
+  ctx.drawImage(webcamVideo, 0, 0, dw, dh);
+  ctx.restore();
 }

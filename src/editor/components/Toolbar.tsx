@@ -85,7 +85,7 @@ export function Toolbar() {
       const path = await window.api.editor.saveImage(buf, `screenshot-${image.capturedAt}.png`);
       if (path) {
         const fileName = path.split('/').pop() ?? path;
-        toast.success(`Kaydedildi: ${fileName}`);
+        toast.success(`Kaydedildi: ${fileName}`, { label: 'Klasörü Göster', onClick: () => window.api.shell.showItemInFolder(path) });
       }
     } catch (err) {
       console.error(err);

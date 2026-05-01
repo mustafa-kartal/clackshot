@@ -65,6 +65,14 @@ function CanvasWithImage() {
   const [imgEl, setImgEl] = useState<HTMLImageElement | null>(null);
   const drawing = useRef<DrawingState>({ drawing: false, startedAt: null, activeId: null });
 
+  // Crop handle sürükleme state'i.
+  const cropDrag = useRef<{
+    active: boolean;
+    handle: CropHandle | null;
+    startPointer: { x: number; y: number };
+    startRect: { x: number; y: number; width: number; height: number };
+  }>({ active: false, handle: null, startPointer: { x: 0, y: 0 }, startRect: { x: 0, y: 0, width: 0, height: 0 } });
+
   // Aktif text edit overlay durumu.
   const [editingText, setEditingText] = useState<{
     id: string;
@@ -104,6 +112,67 @@ function CanvasWithImage() {
     stageRefSingleton.set(stageRef.current);
     return () => stageRefSingleton.set(null);
   }, [imgEl]);
+
+  // Crop sürükleme mouse stage dışına çıkınca da devam etsin.
+  // window level event'leri ile pointer takibi yapıyoruz.
+  useEffect(() => {
+    const onWindowMouseMove = (e: MouseEvent) => {
+      if (!cropDrag.current.active) return;
+      const stage = stageRef.current;
+      if (!stage) return;
+      const container = stage.container();
+      const bounds = container.getBoundingClientRect();
+      // Client koordinatını image-space'e çevir.
+      const rawX = (e.clientX - bounds.left) / scale;
+      const rawY = (e.clientY - bounds.top) / scale;
+      const p = { x: rawX, y: rawY };
+
+      const dx = p.x - cropDrag.current.startPointer.x;
+      const dy = p.y - cropDrag.current.startPointer.y;
+      const r = cropDrag.current.startRect;
+      const MIN = 16;
+      const iW = image.width;
+      const iH = image.height;
+
+      if (cropDrag.current.handle === null) {
+        const nx = Math.max(0, Math.min(r.x + dx, iW - r.width));
+        const ny = Math.max(0, Math.min(r.y + dy, iH - r.height));
+        setCropRect({ x: nx, y: ny, width: r.width, height: r.height });
+      } else {
+        let { x, y, width, height } = r;
+        const h = cropDrag.current.handle;
+        if (h.includes('w')) { x = Math.max(0, Math.min(r.x + dx, r.x + r.width - MIN)); width = r.width - (x - r.x); }
+        if (h.includes('e')) { width = Math.min(Math.max(MIN, r.width + dx), iW - r.x); }
+        if (h.includes('n')) { y = Math.max(0, Math.min(r.y + dy, r.y + r.height - MIN)); height = r.height - (y - r.y); }
+        if (h.includes('s')) { height = Math.min(Math.max(MIN, r.height + dy), iH - r.y); }
+        setCropRect({ x, y, width, height });
+      }
+    };
+
+    const onWindowMouseUp = () => {
+      if (!cropDrag.current.active) return;
+      cropDrag.current.active = false;
+      cropDrag.current.handle = null;
+    };
+
+    window.addEventListener('mousemove', onWindowMouseMove);
+    window.addEventListener('mouseup', onWindowMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', onWindowMouseMove);
+      window.removeEventListener('mouseup', onWindowMouseUp);
+    };
+  }, [scale, image.width, image.height, setCropRect]);
+
+  // Crop tool'a geçince resmin tamamını kapsayan başlangıç rect'i ayarla.
+  useEffect(() => {
+    if (tool === 'crop' && !cropRect) {
+      setCropRect({ x: 0, y: 0, width: image.width, height: image.height });
+    }
+    if (tool !== 'crop') {
+      setCropRect(null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tool]);
 
   // Crop modunda Enter onaylar, Esc iptal eder.
   useEffect(() => {
@@ -159,11 +228,16 @@ function CanvasWithImage() {
     if (!p) return;
 
     if (tool === 'crop') {
-      // Yeni crop seçimi başlat — eskisini sıfırla.
-      drawing.current.drawing = true;
-      drawing.current.startedAt = p;
-      drawing.current.activeId = 'crop';
-      setCropRect({ x: p.x, y: p.y, width: 0, height: 0 });
+      // Alan içine tıklama → taşıma modunu başlat.
+      if (cropRect && p.x >= cropRect.x && p.x <= cropRect.x + cropRect.width &&
+          p.y >= cropRect.y && p.y <= cropRect.y + cropRect.height) {
+        cropDrag.current = {
+          active: true,
+          handle: null, // null = taşıma modu
+          startPointer: p,
+          startRect: { ...cropRect },
+        };
+      }
       return;
     }
 
@@ -216,21 +290,50 @@ function CanvasWithImage() {
   };
 
   const onMouseMove = () => {
+    // Crop sürükleme (handle veya taşıma)
+    if (cropDrag.current.active) {
+      const p = getPointer();
+      if (!p) return;
+      const dx = p.x - cropDrag.current.startPointer.x;
+      const dy = p.y - cropDrag.current.startPointer.y;
+      const r = cropDrag.current.startRect;
+      const MIN = 16;
+      const iW = image.width;
+      const iH = image.height;
+
+      if (cropDrag.current.handle === null) {
+        // Taşıma modu — rect'i kaydır, sınır dışına çıkmasın.
+        const nx = Math.max(0, Math.min(r.x + dx, iW - r.width));
+        const ny = Math.max(0, Math.min(r.y + dy, iH - r.height));
+        setCropRect({ x: nx, y: ny, width: r.width, height: r.height });
+      } else {
+        // Handle resize modu.
+        let { x, y, width, height } = r;
+        const h = cropDrag.current.handle;
+        if (h.includes('w')) {
+          x = Math.max(0, Math.min(r.x + dx, r.x + r.width - MIN));
+          width = r.width - (x - r.x);
+        }
+        if (h.includes('e')) {
+          width = Math.min(Math.max(MIN, r.width + dx), iW - r.x);
+        }
+        if (h.includes('n')) {
+          y = Math.max(0, Math.min(r.y + dy, r.y + r.height - MIN));
+          height = r.height - (y - r.y);
+        }
+        if (h.includes('s')) {
+          height = Math.min(Math.max(MIN, r.height + dy), iH - r.y);
+        }
+        setCropRect({ x, y, width, height });
+      }
+      return;
+    }
+
     if (!drawing.current.drawing) return;
     const p = getPointer();
     if (!p) return;
     const start = drawing.current.startedAt;
     if (!start) return;
-
-    if (drawing.current.activeId === 'crop') {
-      setCropRect({
-        x: Math.min(start.x, p.x),
-        y: Math.min(start.y, p.y),
-        width: Math.abs(p.x - start.x),
-        height: Math.abs(p.y - start.y),
-      });
-      return;
-    }
 
     mutateLastShape((s) => {
       switch (s.type) {
@@ -249,10 +352,27 @@ function CanvasWithImage() {
   };
 
   const onMouseUp = () => {
+    if (cropDrag.current.active) {
+      cropDrag.current.active = false;
+      cropDrag.current.handle = null;
+      return;
+    }
     if (!drawing.current.drawing) return;
     drawing.current.drawing = false;
     drawing.current.startedAt = null;
     drawing.current.activeId = null;
+  };
+
+  const onCropHandleMouseDown = (handle: CropHandle, e: Konva.KonvaEventObject<MouseEvent>) => {
+    e.cancelBubble = true;
+    const p = getPointer();
+    if (!p || !cropRect) return;
+    cropDrag.current = {
+      active: true,
+      handle,
+      startPointer: p,
+      startRect: { ...cropRect },
+    };
   };
 
   // Text tool: click event'i ile yeni text alanı aç. mousedown yerine click
@@ -359,7 +479,11 @@ function CanvasWithImage() {
             onMouseDown={onMouseDown}
             onMouseMove={onMouseMove}
             onMouseUp={onMouseUp}
-            onMouseLeave={onMouseUp}
+            onMouseLeave={() => {
+              // Crop sürükleniyorsa mouse stage dışına çıksa bile bırakma.
+              if (cropDrag.current.active) return;
+              onMouseUp();
+            }}
             onClick={onStageClick}
           >
             <Layer listening={false}>
@@ -381,14 +505,24 @@ function CanvasWithImage() {
                   hidden={editingText?.id === s.id && !editingText.isNew}
                 />
               ))}
-              {tool === 'crop' && cropRect && cropRect.width > 0 && cropRect.height > 0 && (
+            </Layer>
+            {tool === 'crop' && cropRect && cropRect.width > 0 && cropRect.height > 0 && (
+              <Layer>
                 <CropOverlay
                   rect={cropRect}
                   imageW={image.width}
                   imageH={image.height}
+                  onHandleMouseDown={onCropHandleMouseDown}
+                  onMoveMouseDown={(e) => {
+                    e.cancelBubble = true;
+                    const p = getPointer();
+                    if (!p || !cropRect) return;
+                    cropDrag.current = { active: true, handle: null, startPointer: p, startRect: { ...cropRect } };
+                  }}
+                  stageRef={stageRef}
                 />
-              )}
-            </Layer>
+              </Layer>
+            )}
           </Stage>
 
           {editingText && (
@@ -404,29 +538,44 @@ function CanvasWithImage() {
           )}
 
           {tool === 'crop' && cropRect && cropRect.width >= 4 && cropRect.height >= 4 && (
-            <div
-              className="absolute z-20 flex items-center gap-1 px-2 py-1 rounded-lg bg-surface-raised/95 backdrop-blur border border-surface-border shadow-2xl text-xs"
-              style={{
-                left: cropRect.x * scale,
-                top: (cropRect.y + cropRect.height) * scale + 8,
-              }}
-            >
-              <button
-                onClick={() => void applyCrop()}
-                className="px-2 py-1 rounded bg-accent text-white hover:bg-accent-hover whitespace-nowrap"
-              >
-                Kırp (Enter)
-              </button>
-              <button
-                onClick={() => {
-                  setCropRect(null);
-                  setTool('select');
+            <>
+              {/* Boyut balonu — crop alanının üst ortasında */}
+              <div
+                className="absolute z-50 px-2 py-0.5 rounded-md bg-black/75 text-white text-xs font-mono pointer-events-none select-none"
+                style={{
+                  left: (cropRect.x + cropRect.width / 2) * scale,
+                  top: Math.max(4, cropRect.y * scale - 28),
+                  transform: 'translateX(-50%)',
+                  whiteSpace: 'nowrap',
                 }}
-                className="px-2 py-1 rounded text-fg-muted hover:bg-surface-hover whitespace-nowrap"
               >
-                İptal (Esc)
-              </button>
-            </div>
+                {Math.round(cropRect.width)} × {Math.round(cropRect.height)}
+              </div>
+              {/* Kırp / İptal butonları */}
+              <div
+                className="absolute z-50 flex items-center gap-1 px-2 py-1 rounded-lg bg-surface-raised/95 backdrop-blur border border-surface-border shadow-2xl text-xs"
+                style={{
+                  left: cropRect.x * scale,
+                  top: (cropRect.y + cropRect.height) * scale + 8,
+                }}
+              >
+                <button
+                  onClick={() => void applyCrop()}
+                  className="px-2 py-1 rounded bg-accent text-white hover:bg-accent-hover whitespace-nowrap"
+                >
+                  Kırp (Enter)
+                </button>
+                <button
+                  onClick={() => {
+                    setCropRect(null);
+                    setTool('select');
+                  }}
+                  className="px-2 py-1 rounded text-fg-muted hover:bg-surface-hover whitespace-nowrap"
+                >
+                  İptal (Esc)
+                </button>
+              </div>
+            </>
           )}
         </div>
       )}
@@ -434,57 +583,92 @@ function CanvasWithImage() {
   );
 }
 
-// Crop seçim alanı dışını karartır + dashed border çizer. Stage layer içinde
-// Konva node'ları ile render — crop sırasında "ne crop'lanacak" net görünsün.
+// Crop seçim alanı dışını karartır + dashed border + resize handle'lar + taşıma alanı.
+type CropHandle = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
+
 function CropOverlay({
   rect,
   imageW,
   imageH,
+  onHandleMouseDown,
+  onMoveMouseDown,
+  stageRef,
 }: {
   rect: { x: number; y: number; width: number; height: number };
   imageW: number;
   imageH: number;
+  onHandleMouseDown: (handle: CropHandle, e: Konva.KonvaEventObject<MouseEvent>) => void;
+  onMoveMouseDown: (e: Konva.KonvaEventObject<MouseEvent>) => void;
+  stageRef: React.RefObject<Konva.Stage | null>;
 }) {
+  const setCursor = (c: string) => {
+    const container = stageRef.current?.container();
+    if (container) container.style.cursor = c;
+  };
+
   const dim = 'rgba(0, 0, 0, 0.45)';
+  const hs = 24; // handle boyutu (px, image-space)
+  const cx = rect.x + rect.width / 2;
+  const cy = rect.y + rect.height / 2;
+  const r2 = rect.x + rect.width;
+  const b2 = rect.y + rect.height;
+
+  const handles: { id: CropHandle; x: number; y: number; cursor: string }[] = [
+    { id: 'nw', x: rect.x, y: rect.y, cursor: 'nw-resize' },
+    { id: 'n',  x: cx,     y: rect.y, cursor: 'n-resize' },
+    { id: 'ne', x: r2,     y: rect.y, cursor: 'ne-resize' },
+    { id: 'e',  x: r2,     y: cy,     cursor: 'e-resize' },
+    { id: 'se', x: r2,     y: b2,     cursor: 'se-resize' },
+    { id: 's',  x: cx,     y: b2,     cursor: 's-resize' },
+    { id: 'sw', x: rect.x, y: b2,     cursor: 'sw-resize' },
+    { id: 'w',  x: rect.x, y: cy,     cursor: 'w-resize' },
+  ];
+
   return (
     <>
-      {/* 4 dim strip image-bounds içinde */}
+      {/* 4 dim strip */}
       <KRect x={0} y={0} width={imageW} height={Math.max(0, rect.y)} fill={dim} listening={false} />
-      <KRect
-        x={0}
-        y={rect.y + rect.height}
-        width={imageW}
-        height={Math.max(0, imageH - (rect.y + rect.height))}
-        fill={dim}
-        listening={false}
-      />
-      <KRect
-        x={0}
-        y={rect.y}
-        width={Math.max(0, rect.x)}
-        height={rect.height}
-        fill={dim}
-        listening={false}
-      />
-      <KRect
-        x={rect.x + rect.width}
-        y={rect.y}
-        width={Math.max(0, imageW - (rect.x + rect.width))}
-        height={rect.height}
-        fill={dim}
-        listening={false}
-      />
-      {/* Crop kenar çerçevesi */}
+      <KRect x={0} y={b2} width={imageW} height={Math.max(0, imageH - b2)} fill={dim} listening={false} />
+      <KRect x={0} y={rect.y} width={Math.max(0, rect.x)} height={rect.height} fill={dim} listening={false} />
+      <KRect x={r2} y={rect.y} width={Math.max(0, imageW - r2)} height={rect.height} fill={dim} listening={false} />
+      {/* Taşıma alanı — alan içini tıklayınca crop rect'i taşır */}
       <KRect
         x={rect.x}
         y={rect.y}
         width={rect.width}
         height={rect.height}
-        stroke="#fbbf24"
-        strokeWidth={2}
-        dash={[6, 4]}
-        listening={false}
+        fill="transparent"
+        onMouseDown={onMoveMouseDown}
+        onMouseEnter={() => setCursor('move')}
+        onMouseLeave={() => setCursor('default')}
       />
+      {/* Crop çerçevesi */}
+      <KRect x={rect.x} y={rect.y} width={rect.width} height={rect.height} stroke="#3b82f6" strokeWidth={4} dash={[12, 7]} listening={false} />
+      {/* Resize handle'lar — resim sınırı içinde kalacak şekilde clamp edilir */}
+      {handles.map((h) => {
+        const hx = Math.max(0, Math.min(h.x - hs / 2, imageW - hs));
+        const hy = Math.max(0, Math.min(h.y - hs / 2, imageH - hs));
+        return (
+          <KRect
+            key={h.id}
+            x={hx}
+            y={hy}
+            width={hs}
+            height={hs}
+            fill="white"
+            stroke="#3b82f6"
+            strokeWidth={3}
+            cornerRadius={4}
+            shadowColor="rgba(0,0,0,0.5)"
+            shadowBlur={6}
+            shadowOffsetX={0}
+            shadowOffsetY={2}
+            onMouseDown={(e) => onHandleMouseDown(h.id, e)}
+            onMouseEnter={() => setCursor(h.cursor)}
+            onMouseLeave={() => setCursor('default')}
+          />
+        );
+      })}
     </>
   );
 }
@@ -730,9 +914,10 @@ function cursorForTool(tool: string): string {
     case 'rect':
     case 'arrow':
     case 'blur':
-    case 'crop':
     case 'number':
       return 'crosshair';
+    case 'crop':
+      return 'default';
     case 'select':
       return 'default';
     default:

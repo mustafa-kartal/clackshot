@@ -88,6 +88,8 @@ export function createOverlayWindow(purpose: OverlayPurpose = 'screenshot'): Bro
   overlayWindow.once('ready-to-show', () => {
     overlayWindow?.show();
     overlayWindow?.focus();
+    // Renderer'a hangi amaçla açıldığını bildir (screenshot vs record-rect).
+    overlayWindow?.webContents.send(IPC.events.overlaySetPurpose, overlayPurpose);
   });
 
   overlayWindow.on('closed', () => {
