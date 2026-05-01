@@ -1,0 +1,73 @@
+appId: com.clackshot.app
+productName: ClackShot
+copyright: Copyright © 2026
+directories:
+  output: build
+  buildResources: resources
+
+# Auto-update için release sunucusu. GitHub Releases varsayılan; kendi
+# repo'nu işaretle veya 'generic' provider ile özel sunucu URL'i koy.
+# Apple Developer hesabı yokken macOS imzasız build update'leri reddedilir;
+# diğer platformlarda sorun olmaz.
+publish:
+  provider: github
+  owner: mustafa-kartal
+  repo: clackshot
+
+files:
+  - dist/**/*
+  - dist-electron/**/*
+  - node_modules/**/*
+  - package.json
+
+# Tray ikonu vb. runtime'da okunan asset'ler — packaged app içine
+# `Contents/Resources/icons/` altına kopyalanır.
+extraResources:
+  - from: resources/icons
+    to: icons
+    filter:
+      - "favicon-*.png"
+      - "logo-*.png"
+
+asar: true
+asarUnpack:
+  - "**/*.node"
+  - "node_modules/sharp/**/*"
+
+mac:
+  category: public.app-category.productivity
+  icon: resources/icons/icon.icns
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: resources/entitlements.mac.plist
+  entitlementsInherit: resources/entitlements.mac.plist
+  notarize: false # CI'da APPLE_ID + APPLE_APP_SPECIFIC_PASSWORD ile aktifleştirilecek
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+    - target: zip
+      arch: [x64, arm64]
+
+win:
+  icon: resources/icons/icon.png
+  target:
+    - target: nsis
+      arch: [x64]
+  signingHashAlgorithms: [sha256]
+
+nsis:
+  oneClick: false
+  perMachine: false # UAC'yi tetiklememek için per-user kurulum
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false
+
+linux:
+  icon: resources/icons/
+  category: Utility
+  target:
+    - AppImage
+    - deb
+  desktop:
+    Name: ClackShot
+    Comment: Modern screenshot and screen recording tool
+    Categories: Utility;Graphics;

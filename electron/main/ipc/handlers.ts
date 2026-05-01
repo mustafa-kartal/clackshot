@@ -1,0 +1,223 @@
+// Tüm ipcMain.handle kayıtları tek noktada.
+// Her handler küçük ve typed; iş mantığı ilgili modülde.
+import { ipcMain, clipboard, nativeImage, dialog, BrowserWindow } from 'electron';
+import { writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { IPC } from './channels';
+import { takeScreenshot } from '../capture/screenshot';
+import { listSources } from '../capture/sources';
+import { triggerCapture } from '../capture/screenshot-trigger';
+import { checkScreenAccess, openScreenAccessSettings } from '../permissions';
+import { storage } from '../storage';
+import { reregisterShortcuts } from '../shortcuts';
+import { rebuildTrayMenu } from '../windows/tray';
+import { awaitAreaSelection, resolveAreaSelection } from '../recording/area-select';
+import {
+  enterRecordingWidgetMode,
+  exitRecordingWidgetMode,
+  sendCaptureToEditor,
+} from '../windows/editor';
+import {
+  closeOverlay,
+  getOverlayPurpose,
+  transitionOverlayToRecording,
+} from '../windows/overlay';
+import {
+  closeFaceCamWindow,
+  createFaceCamWindow,
+  setFaceCamShape,
+} from '../windows/face-cam';
+import { showCountdown } from '../windows/countdown';
+import type { FaceCamShape } from '../../../src/shared/types';
+import type { ScreenshotOptions, AppConfig } from '../../../src/shared/types';
+
+export function registerIpcHandlers(): void {
+  // -- capture
+  ipcMain.handle(IPC.capture.screenshot, async (_e, opts: ScreenshotOptions) => {
+    return takeScreenshot(opts);
+  });
+  ipcMain.handle(IPC.capture.listSources, async (_e, types?: Array<'screen' | 'window'>) => {
+    return listSources(types);
+  });
+  ipcMain.handle(
+    IPC.capture.trigger,
+    async (_e, mode: 'area' | 'fullscreen' | 'window') => {
+      await triggerCapture(mode);
+    },
+  );
+
+  // -- overlay → main
+  ipcMain.handle(
+    IPC.overlay.submit,
+    async (_e, rect: { x: number; y: number; width: number; height: number }) => {
+      const purpose = getOverlayPurpose();
+
+      if (purpose === 'record-rect') {
+        // Area recording: rect'i bekleyen renderer'a iade et + overlay'i
+        // kapatma, click-through pasif çerçeve göstergesine dönüştür.
+        // Pencere açık kalır, kayıt sırasında dim+çerçeve gösterir.
+        resolveAreaSelection(rect);
+        transitionOverlayToRecording(rect);
+        return;
+      }
+
+      // Default: screenshot akışı. Pencereyi önce kapat ki seçim kutusu
+      // screenshot'a sızmasın.
+      closeOverlay();
+      // Pencere gerçekten gizlenip ekran tazelenene kadar 1 frame bekle ki
+      // seçim kutusu sızmasın.
+      await new Promise((r) => setTimeout(r, 80));
+      const result = await takeScreenshot({ mode: 'area', rect });
+      sendCaptureToEditor(result);
+    },
+  );
+  ipcMain.handle(IPC.overlay.cancel, async () => {
+    const purpose = getOverlayPurpose();
+    closeOverlay();
+    if (purpose === 'record-rect') {
+      resolveAreaSelection(null);
+    }
+  });
+
+  // -- editor
+  ipcMain.handle(
+    IPC.editor.saveImage,
+    async (_e, png: ArrayBuffer, suggestedName?: string) => {
+      const dir = storage.get('saveDirectory');
+      const defaultName = suggestedName || `screenshot-${Date.now()}.png`;
+      const { canceled, filePath } = await dialog.showSaveDialog({
+        defaultPath: dir ? join(dir, defaultName) : defaultName,
+        filters: [{ name: 'PNG', extensions: ['png'] }],
+      });
+      if (canceled || !filePath) return null;
+      await writeFile(filePath, Buffer.from(png));
+      storage.addRecent({
+        filePath,
+        type: 'image',
+        capturedAt: Date.now(),
+        name: filePath.split(/[/\\]/).pop() ?? filePath,
+      });
+      rebuildTrayMenu();
+      return filePath;
+    },
+  );
+  ipcMain.handle(IPC.editor.copyImage, async (_e, png: ArrayBuffer) => {
+    const img = nativeImage.createFromBuffer(Buffer.from(png));
+    clipboard.writeImage(img);
+  });
+
+  // -- recording
+  ipcMain.handle(
+    IPC.recording.saveVideo,
+    async (_e, bytes: ArrayBuffer, suggestedName?: string) => {
+      // WebCodecs pipeline'ı zaten MP4 üretiyor — burada sadece diske yazıyoruz.
+      const dir = storage.get('saveDirectory');
+      const defaultName = suggestedName || `recording-${Date.now()}.mp4`;
+      const { canceled, filePath } = await dialog.showSaveDialog({
+        defaultPath: dir ? join(dir, defaultName) : defaultName,
+        filters: [{ name: 'MP4 Video', extensions: ['mp4'] }],
+      });
+      if (canceled || !filePath) return null;
+
+      await writeFile(filePath, Buffer.from(bytes));
+      storage.addRecent({
+        filePath,
+        type: 'video',
+        capturedAt: Date.now(),
+        name: filePath.split(/[/\\]/).pop() ?? filePath,
+      });
+      rebuildTrayMenu();
+      return filePath;
+    },
+  );
+  ipcMain.handle(IPC.recording.selectArea, async () => {
+    return awaitAreaSelection();
+  });
+  ipcMain.handle(IPC.recording.endOverlay, async () => {
+    closeOverlay();
+  });
+  ipcMain.handle(IPC.recording.enterWidgetMode, async () => {
+    await enterRecordingWidgetMode();
+  });
+  ipcMain.handle(IPC.recording.exitWidgetMode, async () => {
+    exitRecordingWidgetMode();
+  });
+  ipcMain.handle(IPC.recording.showFaceCam, async () => {
+    createFaceCamWindow();
+  });
+  ipcMain.handle(IPC.recording.hideFaceCam, async () => {
+    closeFaceCamWindow();
+  });
+  ipcMain.handle(IPC.recording.setFaceCamShape, async (_e, shape: FaceCamShape) => {
+    setFaceCamShape(shape);
+  });
+  ipcMain.handle(IPC.recording.countdown, async (_e, seconds: number) => {
+    await showCountdown(seconds);
+  });
+  ipcMain.handle(IPC.editor.close, async (e) => {
+    BrowserWindow.fromWebContents(e.sender)?.close();
+  });
+
+  // -- permissions
+  ipcMain.handle(IPC.permissions.checkScreen, async () => checkScreenAccess());
+  ipcMain.handle(IPC.permissions.openScreenSettings, async () => openScreenAccessSettings());
+
+  // -- config
+  ipcMain.handle(IPC.config.getAll, async () => storage.getAll());
+  ipcMain.handle(
+    IPC.config.set,
+    async (_e, key: keyof AppConfig, value: AppConfig[keyof AppConfig]) => {
+      storage.set(key, value);
+    },
+  );
+  ipcMain.handle(IPC.config.pickSaveDirectory, async () => {
+    const current = storage.get('saveDirectory');
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+      title: 'Kayıt klasörü seç',
+      defaultPath: current ?? undefined,
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    if (canceled || filePaths.length === 0) return null;
+    const dir = filePaths[0];
+    storage.set('saveDirectory', dir);
+    return dir;
+  });
+  ipcMain.handle(
+    IPC.config.setShortcut,
+    async (
+      _e,
+      key: keyof AppConfig['shortcuts'],
+      accelerator: string,
+    ): Promise<{ ok: boolean; error?: string }> => {
+      if (!accelerator || typeof accelerator !== 'string') {
+        return { ok: false, error: 'Geçersiz kısayol' };
+      }
+
+      const cfg = storage.getAll();
+      for (const k of Object.keys(cfg.shortcuts) as Array<keyof AppConfig['shortcuts']>) {
+        if (k !== key && cfg.shortcuts[k] === accelerator) {
+          return { ok: false, error: 'Bu kısayol başka bir aksiyon için kullanılıyor' };
+        }
+      }
+
+      const prev = cfg.shortcuts;
+      storage.set('shortcuts', { ...prev, [key]: accelerator });
+
+      const result = reregisterShortcuts();
+      if (result.failed.includes(key)) {
+        // Yeni accelerator OS tarafından kabul edilmedi (başka uygulama almış olabilir)
+        // veya geçersiz format. Eski değere geri dön.
+        storage.set('shortcuts', prev);
+        reregisterShortcuts();
+        return {
+          ok: false,
+          error: 'Bu kısayol kullanılamıyor (başka uygulama tarafından alınmış olabilir)',
+        };
+      }
+
+      // Tray menüsündeki accelerator etiketini de yenile.
+      rebuildTrayMenu();
+      return { ok: true };
+    },
+  );
+}

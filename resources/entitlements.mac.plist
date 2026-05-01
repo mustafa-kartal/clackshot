@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTD/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Hardened runtime gerekli izinler -->
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+
+    <!-- Mikrofon (recording fazı için ön hazırlık) -->
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
+    <!-- Kamera (face cam overlay için) -->
+    <key>com.apple.security.device.camera</key>
+    <true/>
+
+    <!-- Ekran kaydı için TCC entry — entitlement değil, plist anahtarı -->
+    <key>NSScreenCaptureUsageDescription</key>
+    <string>OpenScreenshot ekran görüntüsü ve ekran kaydı alabilmek için ekrana erişim ister.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>OpenScreenshot ekran kaydına ses dahil edebilmek için mikrofon erişimi ister.</string>
+    <key>NSCameraUsageDescription</key>
+    <string>OpenScreenshot ekran kaydına yüzünüzü dahil edebilmek için kamera erişimi ister.</string>
+</dict>
+</plist>

@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="tr" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <!--
+      CSP: dev modda Vite HMR WebSocket için ws: ve script eval (HMR client) gerek.
+      Prod build'de electron main'in onHeadersReceived hook'u ile sıkıştırılır (Phase 5).
+    -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: ws: http://localhost:* http://127.0.0.1:*; img-src 'self' data: blob:;" />
+    <title>ClackShot</title>
+    <link rel="icon" type="image/png" href="../../resources/icons/favicon-dark.png" />
+    <link rel="stylesheet" href="./styles/globals.css" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./main.tsx"></script>
+  </body>
+</html>
