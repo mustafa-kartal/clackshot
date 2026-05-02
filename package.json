@@ -2,6 +2,10 @@
   "name": "clackshot",
   "version": "0.1.0",
   "description": "Modern cross-platform screenshot and screen recording tool",
+  "author": {
+    "name": "Mustafa KARTAL",
+    "email": "cimec61@gmail.com"
+  },
   "main": "dist-electron/main/index.js",
   "type": "module",
   "scripts": {

@@ -21,6 +21,7 @@ export function App() {
   const loadConfig = useConfigStore((s) => s.load);
   const recordingActive = useRecordingStore((s) => s.active);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<string | undefined>(undefined);
   const appliedTheme = useAppliedTheme();
   // Tema-duyarlı favicon. İsim suffix'i logo'nun KENDİ rengini belirtir:
   // favicon-dark = koyu renkli logo → açık zeminde (light mode) okunur.
@@ -48,7 +49,10 @@ export function App() {
 
   // Tray menüsünden "Ayarlar" tıklanınca modal'ı aç.
   useEffect(() => {
-    const off = window.api.on.openSettings(() => setSettingsOpen(true));
+    const off = window.api.on.openSettings((tab) => {
+      setSettingsTab(tab);
+      setSettingsOpen(true);
+    });
     return off;
   }, []);
 
@@ -114,7 +118,7 @@ export function App() {
       <UndoRedoKeyHandler />
       <ImageCanvas />
       <ActionBar />
-      <Settings open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <Settings open={settingsOpen} onClose={() => setSettingsOpen(false)} initialTab={settingsTab} />
       {/* ToastHost en altta */}
       <ToastHost />
     </div>

@@ -26,6 +26,8 @@ const defaults: AppConfig = {
     recordWindow: process.platform === 'darwin' ? 'Cmd+Shift+9' : 'Ctrl+Shift+9',
   },
   recents: [],
+  updateSnoozedUntil: null,
+  updateSkippedVersion: null,
 };
 
 // Pictures klasörünü default kayıt yolu yap (varsa).
@@ -65,6 +67,8 @@ const store = new Store<AppConfig>({
   if (!has('videoFps')) store.set('videoFps', defaults.videoFps);
   if (!has('videoQuality')) store.set('videoQuality', defaults.videoQuality);
   if (!has('launchAtLogin')) store.set('launchAtLogin', defaults.launchAtLogin);
+  if (!has('updateSnoozedUntil')) store.set('updateSnoozedUntil', defaults.updateSnoozedUntil);
+  if (!has('updateSkippedVersion')) store.set('updateSkippedVersion', defaults.updateSkippedVersion);
 }
 
 export const storage = {

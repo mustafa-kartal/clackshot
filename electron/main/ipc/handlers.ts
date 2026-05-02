@@ -10,6 +10,7 @@ import { triggerCapture } from '../capture/screenshot-trigger';
 import { checkScreenAccess, openScreenAccessSettings } from '../permissions';
 import { storage } from '../storage';
 import { reregisterShortcuts } from '../shortcuts';
+import { triggerUpdateDialogForTest } from '../updater';
 import { rebuildTrayMenu } from '../windows/tray';
 import { awaitAreaSelection, resolveAreaSelection } from '../recording/area-select';
 import {
@@ -250,7 +251,16 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(IPC.permissions.checkScreen, async () => checkScreenAccess());
   ipcMain.handle(IPC.permissions.openScreenSettings, async () => openScreenAccessSettings());
 
+  // DEV-ONLY: update dialog'unu dev modda test etmek için — production'a çıkmadan silinecek
+  if (!app.isPackaged) {
+    ipcMain.handle(IPC.dev.triggerUpdateDialog, async () => {
+      await triggerUpdateDialogForTest();
+    });
+  }
+  // END DEV-ONLY
+
   // -- config
+  ipcMain.handle(IPC.config.getVersion, async () => app.getVersion());
   ipcMain.handle(IPC.config.getAll, async () => storage.getAll());
   ipcMain.handle(
     IPC.config.set,

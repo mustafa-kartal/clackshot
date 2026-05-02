@@ -62,6 +62,7 @@ export interface IpcApi {
     ): Promise<{ ok: boolean; error?: string }>;
     pickSaveDirectory(): Promise<string | null>;
     setLaunchAtLogin(enabled: boolean): Promise<void>;
+    getVersion(): Promise<string>;
   };
   shell: {
     showItemInFolder(path: string): Promise<void>;
@@ -74,7 +75,11 @@ export interface IpcApi {
     captureCompleted(handler: (result: CaptureResult) => void): () => void;
     overlayEnterRecording(handler: (rect: Rect) => void): () => void;
     triggerRecord(handler: (mode: RecordingMode) => void): () => void;
-    openSettings(handler: () => void): () => void;
+    openSettings(handler: (tab?: string) => void): () => void;
+    updateDownloading(handler: () => void): () => void;
+    updateProgress(handler: (percent: number) => void): () => void;
+    updateDownloaded(handler: () => void): () => void;
+    updateError(handler: (message: string) => void): () => void;
   };
 }
 

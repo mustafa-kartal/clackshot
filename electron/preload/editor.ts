@@ -44,6 +44,7 @@ const api: IpcApi = {
     setShortcut: (key, accel) => ipcRenderer.invoke(IPC.config.setShortcut, key, accel),
     pickSaveDirectory: () => ipcRenderer.invoke(IPC.config.pickSaveDirectory),
     setLaunchAtLogin: (enabled) => ipcRenderer.invoke(IPC.config.setLaunchAtLogin, enabled),
+    getVersion: () => ipcRenderer.invoke(IPC.config.getVersion),
   },
   shell: {
     showItemInFolder: (path) => ipcRenderer.invoke(IPC.shell.showItemInFolder, path),
@@ -70,11 +71,37 @@ const api: IpcApi = {
       return () => ipcRenderer.removeListener(IPC.events.triggerRecord, wrapped);
     },
     openSettings(handler) {
-      const wrapped = () => handler();
+      const wrapped = (_e: unknown, tab?: string) => handler(tab);
       ipcRenderer.on(IPC.events.openSettings, wrapped);
       return () => ipcRenderer.removeListener(IPC.events.openSettings, wrapped);
+    },
+    updateDownloading(handler) {
+      const wrapped = () => handler();
+      ipcRenderer.on('event:update-downloading', wrapped);
+      return () => ipcRenderer.removeListener('event:update-downloading', wrapped);
+    },
+    updateProgress(handler) {
+      const wrapped = (_e: unknown, payload: { percent: number }) => handler(payload.percent);
+      ipcRenderer.on('event:update-progress', wrapped);
+      return () => ipcRenderer.removeListener('event:update-progress', wrapped);
+    },
+    updateDownloaded(handler) {
+      const wrapped = () => handler();
+      ipcRenderer.on('event:update-downloaded', wrapped);
+      return () => ipcRenderer.removeListener('event:update-downloaded', wrapped);
+    },
+    updateError(handler) {
+      const wrapped = (_e: unknown, message: string) => handler(message);
+      ipcRenderer.on('event:update-error', wrapped);
+      return () => ipcRenderer.removeListener('event:update-error', wrapped);
     },
   },
 };
 
 contextBridge.exposeInMainWorld('api', api);
+
+// DEV-ONLY: update dialog test butonu için — production'a çıkmadan silinecek
+contextBridge.exposeInMainWorld('devApi', {
+  triggerUpdateDialog: () => ipcRenderer.invoke(IPC.dev.triggerUpdateDialog),
+});
+// END DEV-ONLY

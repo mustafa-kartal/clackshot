@@ -73,4 +73,6 @@ export interface AppConfig {
     recordWindow: string;
   };
   recents: RecentItem[];
+  updateSnoozedUntil: number | null;
+  updateSkippedVersion: string | null;
 }

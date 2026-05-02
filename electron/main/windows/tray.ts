@@ -53,7 +53,13 @@ function openSettings(): void {
   if (win.isMinimized()) win.restore();
   win.show();
   win.focus();
-  win.webContents.send(IPC.events.openSettings);
+  if (win.webContents.isLoading()) {
+    win.webContents.once('did-finish-load', () => {
+      win.webContents.send(IPC.events.openSettings);
+    });
+  } else {
+    win.webContents.send(IPC.events.openSettings);
+  }
 }
 
 function buildMenu(): Menu {
@@ -143,6 +149,22 @@ function buildMenu(): Menu {
     {
       label: '⚙️  Ayarlar',
       click: openSettings,
+    },
+    {
+      label: 'ℹ️  Hakkında',
+      click: () => {
+        const win = getEditorWindow() ?? createEditorWindow();
+        if (win.isMinimized()) win.restore();
+        win.show();
+        win.focus();
+        if (win.webContents.isLoading()) {
+          win.webContents.once('did-finish-load', () => {
+            win.webContents.send(IPC.events.openSettings, 'about');
+          });
+        } else {
+          win.webContents.send(IPC.events.openSettings, 'about');
+        }
+      },
     },
     { type: 'separator' },
     { label: '🚪  Çıkış', click: () => app.quit() },

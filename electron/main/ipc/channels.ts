@@ -39,6 +39,7 @@ export const IPC = {
     setShortcut: 'config:set-shortcut',
     pickSaveDirectory: 'config:pick-save-directory',
     setLaunchAtLogin: 'config:set-launch-at-login',
+    getVersion: 'config:get-version',
   },
   shell: {
     showItemInFolder: 'shell:show-item-in-folder',
@@ -57,4 +58,9 @@ export const IPC = {
     triggerRecord: 'event:trigger-record',
     openSettings: 'event:open-settings',
   },
+  // DEV-ONLY: update dialog test kanalı — production'a çıkmadan silinecek
+  dev: {
+    triggerUpdateDialog: 'dev:trigger-update-dialog',
+  },
+  // END DEV-ONLY
 } as const;

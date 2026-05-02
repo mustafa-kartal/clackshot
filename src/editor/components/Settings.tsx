@@ -4,6 +4,8 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useConfigStore } from '../store/configStore';
 import type { AppConfig, ImageFormat, VideoFps, VideoQuality, VideoResolution } from '../../shared/types';
+import logoDark from '../../../resources/icons/logo-dark.png';
+import logoLight from '../../../resources/icons/logo-light.png';
 
 type ShortcutKey =
   | 'captureArea'
@@ -33,19 +35,23 @@ const RECORD_ORDER: ShortcutKey[] = [
   'recordWindow',
 ];
 
-type TabId = 'general' | 'shortcuts' | 'recording' | 'system';
+type TabId = 'general' | 'shortcuts' | 'recording' | 'system' | 'about';
 
 interface SettingsProps {
   open: boolean;
   onClose(): void;
+  initialTab?: string;
 }
 
-export function Settings({ open, onClose }: SettingsProps) {
+export function Settings({ open, onClose, initialTab }: SettingsProps) {
   const loadConfig = useConfigStore((s) => s.load);
   const [tab, setTab] = useState<TabId>('general');
 
   useEffect(() => {
     if (!open) return;
+    if (initialTab && ['general', 'shortcuts', 'recording', 'system', 'about'].includes(initialTab)) {
+      setTab(initialTab as TabId);
+    }
     // Açılışta taze değer yükle (başka pencerelerde değişme ihtimaline karşı).
     void loadConfig();
   }, [open, loadConfig]);
@@ -105,6 +111,13 @@ export function Settings({ open, onClose }: SettingsProps) {
               active={tab === 'system'}
               onClick={() => setTab('system')}
             />
+            <SidebarItem
+              id="about"
+              label="Hakkında"
+              icon={<InfoIcon />}
+              active={tab === 'about'}
+              onClick={() => setTab('about')}
+            />
           </nav>
 
           {/* Content */}
@@ -113,6 +126,7 @@ export function Settings({ open, onClose }: SettingsProps) {
             {tab === 'shortcuts' && <ShortcutsPane />}
             {tab === 'recording' && <RecordingPane />}
             {tab === 'system' && <SystemPane />}
+            {tab === 'about' && <AboutPane />}
           </div>
         </div>
       </div>
@@ -373,6 +387,108 @@ function SystemPane() {
   );
 }
 
+// --- Pane: Hakkında ---
+
+function AboutPane() {
+  const [version, setVersion] = useState<string>('...');
+  const [updateState, setUpdateState] = useState<
+    | { kind: 'idle' }
+    | { kind: 'downloading'; percent: number }
+    | { kind: 'downloaded' }
+    | { kind: 'error'; message: string }
+  >({ kind: 'idle' });
+
+  useEffect(() => {
+    void window.api.config.getVersion().then(setVersion);
+
+    const offDownloading = window.api.on.updateDownloading(() =>
+      setUpdateState({ kind: 'downloading', percent: 0 }),
+    );
+    const offProgress = window.api.on.updateProgress((percent) =>
+      setUpdateState({ kind: 'downloading', percent }),
+    );
+    const offDownloaded = window.api.on.updateDownloaded(() =>
+      setUpdateState({ kind: 'downloaded' }),
+    );
+    const offError = window.api.on.updateError((message) =>
+      setUpdateState({ kind: 'error', message }),
+    );
+
+    return () => {
+      offDownloading();
+      offProgress();
+      offDownloaded();
+      offError();
+    };
+  }, []);
+
+  const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+  return (
+    <div className="flex flex-col items-center justify-center h-full gap-5 py-8">
+      {/* Logo */}
+      <div className="flex flex-col items-center gap-3">
+        <img
+          src={isDark ? logoLight : logoDark}
+          alt="ClackShot"
+          className="h-14 w-auto object-contain drop-shadow-sm"
+        />
+        <span className="text-xs text-fg-subtle font-mono bg-surface border border-surface-border px-2.5 py-0.5 rounded-full">
+          v{version}
+        </span>
+      </div>
+
+      {/* Divider */}
+      <div className="w-full max-w-xs border-t border-surface-border" />
+
+      {/* Description */}
+      <p className="text-sm text-fg-subtle text-center max-w-xs leading-relaxed">
+        Modern, minimal, açık kaynak ekran görüntüsü ve kayıt aracı.
+      </p>
+
+      {/* Update progress banner */}
+      {updateState.kind === 'downloading' && (
+        <div className="w-full max-w-xs flex flex-col gap-2">
+          <div className="flex justify-between text-xs text-fg-subtle">
+            <span>Güncelleme indiriliyor…</span>
+            <span>{Math.round(updateState.percent)}%</span>
+          </div>
+          <div className="h-1.5 bg-surface rounded-full overflow-hidden">
+            <div
+              className="h-full bg-accent rounded-full transition-all duration-300"
+              style={{ width: `${updateState.percent}%` }}
+            />
+          </div>
+        </div>
+      )}
+      {updateState.kind === 'downloaded' && (
+        <p className="text-sm text-green-400 text-center">Güncelleme indirildi, uygulamayı kapatınca yüklenecek.</p>
+      )}
+      {updateState.kind === 'error' && (
+        <p className="text-xs text-red-400 text-center max-w-xs">Güncelleme hatası: {updateState.message}</p>
+      )}
+
+      {/* Links */}
+      <div className="flex gap-2 w-full max-w-xs">
+        <button
+          className="flex-1 px-4 py-2 text-sm rounded-lg border border-surface-border text-fg-subtle hover:text-fg hover:bg-surface-hover transition-colors"
+          onClick={() => void window.api.shell.openExternal('https://github.com/mustafa-kartal/clackshot')}
+        >
+          GitHub
+        </button>
+        <button
+          className="flex-1 px-4 py-2 text-sm rounded-lg border border-surface-border text-fg-subtle hover:text-fg hover:bg-surface-hover transition-colors"
+          onClick={() => void window.api.shell.openExternal('https://github.com/mustafa-kartal/clackshot/releases')}
+        >
+          Sürüm Notları
+        </button>
+      </div>
+
+      <p className="text-xs text-fg-subtle/40 mt-auto">© 2026 ClackShot. Tüm hakları saklıdır.</p>
+    </div>
+  );
+}
+
 // --- Reusable components ---
 
 function Section(props: { title: string; hint?: string; children: ReactNode }) {
@@ -620,6 +736,16 @@ function SystemIcon() {
       <rect x="2" y="3" width="20" height="14" rx="2" />
       <line x1="8" y1="21" x2="16" y2="21" />
       <line x1="12" y1="17" x2="12" y2="21" />
+    </svg>
+  );
+}
+
+function InfoIcon() {
+  return (
+    <svg {...ICON_PROPS} aria-hidden="true">
+      <circle cx="12" cy="12" r="10" />
+      <line x1="12" y1="8" x2="12" y2="8" strokeWidth="2" strokeLinecap="round" />
+      <line x1="12" y1="12" x2="12" y2="16" />
     </svg>
   );
 }
