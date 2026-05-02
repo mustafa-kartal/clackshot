@@ -44,6 +44,7 @@ interface BaseArrow {
   points: [number, number, number, number];
   stroke: string;
   strokeWidth: number;
+  headSize: number; // ok başı çarpanı (1=küçük, 3=orta, 5=büyük)
 }
 interface BaseBlur {
   id: string;
@@ -81,6 +82,8 @@ interface EditorState {
   color: string;
   strokeWidth: number;
   fontSize: number;
+  arrowHeadSize: number;
+  blurRadius: number;
   shapes: Shape[];
   past: Shape[][];
   future: Shape[][];
@@ -93,6 +96,9 @@ interface EditorState {
   setTool(tool: Tool): void;
   setColor(color: string): void;
   setStrokeWidth(w: number): void;
+  setFontSize(size: number): void;
+  setArrowHeadSize(size: number): void;
+  setBlurRadius(r: number): void;
   setSelected(id: string | null): void;
   setCropRect(r: { x: number; y: number; width: number; height: number } | null): void;
   applyCrop(): Promise<void>;
@@ -138,8 +144,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   image: null,
   tool: 'pen',
   color: '#ef4444',
-  strokeWidth: 4,
+  strokeWidth: 15,
   fontSize: 24,
+  arrowHeadSize: 5,
+  blurRadius: 16,
   shapes: [],
   past: [],
   future: [],
@@ -177,6 +185,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
   setStrokeWidth(strokeWidth) {
     set({ strokeWidth });
+  },
+  setFontSize(fontSize) {
+    set({ fontSize });
+  },
+  setArrowHeadSize(arrowHeadSize) {
+    set({ arrowHeadSize });
+  },
+  setBlurRadius(blurRadius) {
+    set({ blurRadius });
   },
   setSelected(id) {
     set({ selectedId: id });

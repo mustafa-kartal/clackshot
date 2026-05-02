@@ -56,7 +56,15 @@ export function RecordingControls({ embedded = false }: RecordingControlsProps) 
     try {
       const blob = await handle.stop();
       const buf = await blob.arrayBuffer();
-      const path = await window.api.recording.saveVideo(buf, `recording-${Date.now()}.mp4`);
+      const d = new Date();
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const yyyy = d.getFullYear();
+      const H = String(d.getHours()).padStart(2, '0');
+      const i = String(d.getMinutes()).padStart(2, '0');
+      const s = String(d.getSeconds()).padStart(2, '0');
+      const stamp = `${dd}-${mm}-${yyyy}-${H}-${i}-${s}`;
+      const path = await window.api.recording.saveVideo(buf, `clackshot-video-${stamp}.mp4`);
       if (path) {
         const fileName = path.split('/').pop() ?? path;
         toast.success(`Kaydedildi: ${fileName}`, { label: 'Klasörü Göster', onClick: () => window.api.shell.showItemInFolder(path) });

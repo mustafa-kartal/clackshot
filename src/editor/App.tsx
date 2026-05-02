@@ -9,7 +9,7 @@ import { useConfigStore } from './store/configStore';
 import { useRecordingStore } from './store/recordingStore';
 import { useAppliedTheme } from './hooks/useAppliedTheme';
 import { ImageCanvas } from './components/ImageCanvas';
-import { Toolbar } from './components/Toolbar';
+import { ToolsBar, ActionBar, UndoRedoKeyHandler } from './components/Toolbar';
 import { Settings } from './components/Settings';
 import { RecordingControls } from './components/RecordingControls';
 import { ToastHost } from './components/ToastHost';
@@ -104,8 +104,10 @@ export function App() {
           </button>
         </div>
       </header>
+      <ToolsBar />
+      <UndoRedoKeyHandler />
       <ImageCanvas />
-      <Toolbar />
+      <ActionBar />
       <Settings open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       {/* ToastHost en altta */}
       <ToastHost />

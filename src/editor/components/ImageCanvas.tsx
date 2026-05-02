@@ -47,6 +47,8 @@ function CanvasWithImage() {
   const color = useEditorStore((s) => s.color);
   const strokeWidth = useEditorStore((s) => s.strokeWidth);
   const fontSize = useEditorStore((s) => s.fontSize);
+  const arrowHeadSize = useEditorStore((s) => s.arrowHeadSize);
+  const blurRadius = useEditorStore((s) => s.blurRadius);
   const shapes = useEditorStore((s) => s.shapes);
   const selectedId = useEditorStore((s) => s.selectedId);
   const setSelected = useEditorStore((s) => s.setSelected);
@@ -72,6 +74,15 @@ function CanvasWithImage() {
     startPointer: { x: number; y: number };
     startRect: { x: number; y: number; width: number; height: number };
   }>({ active: false, handle: null, startPointer: { x: 0, y: 0 }, startRect: { x: 0, y: 0, width: 0, height: 0 } });
+
+  // Shape resize handle sürükleme state'i.
+  const shapeDrag = useRef<{
+    active: boolean;
+    shapeId: string | null;
+    handle: ResizeHandle | null;
+    startPointer: { x: number; y: number };
+    startShape: Shape | null;
+  }>({ active: false, shapeId: null, handle: null, startPointer: { x: 0, y: 0 }, startShape: null });
 
   // Aktif text edit overlay durumu.
   const [editingText, setEditingText] = useState<{
@@ -162,6 +173,100 @@ function CanvasWithImage() {
       window.removeEventListener('mouseup', onWindowMouseUp);
     };
   }, [scale, image.width, image.height, setCropRect]);
+
+  // Shape resize handle sürükleme — mouse stage dışına çıksa bile devam etsin.
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!shapeDrag.current.active) return;
+      const stage = stageRef.current;
+      if (!stage) return;
+      const bounds = stage.container().getBoundingClientRect();
+      const px = (e.clientX - bounds.left) / scale;
+      const py = (e.clientY - bounds.top) / scale;
+      const dx = px - shapeDrag.current.startPointer.x;
+      const dy = py - shapeDrag.current.startPointer.y;
+      const src = shapeDrag.current.startShape;
+      const id = shapeDrag.current.shapeId;
+      const h = shapeDrag.current.handle;
+      if (!src || !id || !h) return;
+
+      const MIN = 8;
+      let next: Shape | null = null;
+
+      if (src.type === 'rect' || src.type === 'blur') {
+        let { x, y, width, height } = src;
+        if (h.includes('w')) { x = Math.min(src.x + dx, src.x + src.width - MIN); width = src.width - (x - src.x); }
+        if (h.includes('e')) { width = Math.max(MIN, src.width + dx); }
+        if (h.includes('n')) { y = Math.min(src.y + dy, src.y + src.height - MIN); height = src.height - (y - src.y); }
+        if (h.includes('s')) { height = Math.max(MIN, src.height + dy); }
+        next = { ...src, x, y, width, height };
+      } else if (src.type === 'arrow') {
+        const [x1, y1, x2, y2] = src.points;
+        if (h === 'p1') next = { ...src, points: [x1 + dx, y1 + dy, x2, y2] };
+        else next = { ...src, points: [x1, y1, x2 + dx, y2 + dy] };
+      } else if (src.type === 'pen') {
+        // Pen: bounding box hesapla, scale + translate uygula.
+        const pts = src.points;
+        const xs = pts.filter((_, i) => i % 2 === 0);
+        const ys = pts.filter((_, i) => i % 2 !== 0);
+        const bx = Math.min(...xs); const by = Math.min(...ys);
+        const bw = Math.max(...xs) - bx; const bh = Math.max(...ys) - by;
+        let nbx = bx; let nby = by; let nbw = bw; let nbh = bh;
+        if (h.includes('w')) { nbx = bx + dx; nbw = bw - dx; }
+        if (h.includes('e')) { nbw = bw + dx; }
+        if (h.includes('n')) { nby = by + dy; nbh = bh - dy; }
+        if (h.includes('s')) { nbh = bh + dy; }
+        if (nbw < MIN) nbw = MIN;
+        if (nbh < MIN) nbh = MIN;
+        const scaleX = nbw / (bw || 1); const scaleY = nbh / (bh || 1);
+        const newPts = pts.map((v, i) =>
+          i % 2 === 0 ? nbx + (v - bx) * scaleX : nby + (v - by) * scaleY,
+        );
+        next = { ...src, points: newPts };
+      } else if (src.type === 'text') {
+        let { x, y, fontSize: fs } = src;
+        if (h === 'se') {
+          const newFs = Math.max(8, Math.round(fs + (dx + dy) / 2));
+          next = { ...src, fontSize: newFs };
+        } else if (h === 'nw') {
+          const newFs = Math.max(8, Math.round(fs - (dx + dy) / 2));
+          x = src.x + (fs - newFs) * 0.5;
+          y = src.y + (fs - newFs) * 0.5;
+          next = { ...src, x, y, fontSize: newFs };
+        } else {
+          x = src.x + dx; y = src.y + dy;
+          next = { ...src, x, y };
+        }
+      } else if (src.type === 'number') {
+        if (h === 'se' || h === 'ne' || h === 'e') {
+          next = { ...src, radius: Math.max(10, src.radius + dx) };
+        } else if (h === 'nw' || h === 'sw' || h === 'w') {
+          next = { ...src, radius: Math.max(10, src.radius - dx) };
+        } else {
+          next = { ...src, x: src.x + dx, y: src.y + dy };
+        }
+      }
+
+      if (next) {
+        commitUpdate(id, () => next!);
+      }
+    };
+
+    const onUp = () => {
+      if (!shapeDrag.current.active) return;
+      shapeDrag.current.active = false;
+      shapeDrag.current.shapeId = null;
+      shapeDrag.current.handle = null;
+      shapeDrag.current.startShape = null;
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [scale, commitUpdate]);
 
   // Crop tool'a geçince resmin tamamını kapsayan başlangıç rect'i ayarla.
   useEffect(() => {
@@ -270,6 +375,7 @@ function CanvasWithImage() {
           points: [p.x, p.y, p.x, p.y],
           stroke: color,
           strokeWidth,
+          headSize: arrowHeadSize,
         };
         break;
       case 'blur':
@@ -280,7 +386,7 @@ function CanvasWithImage() {
           y: p.y,
           width: 0,
           height: 0,
-          blurRadius: 16,
+          blurRadius,
         };
         break;
       default:
@@ -360,7 +466,10 @@ function CanvasWithImage() {
     if (!drawing.current.drawing) return;
     drawing.current.drawing = false;
     drawing.current.startedAt = null;
+    const finishedId = drawing.current.activeId;
     drawing.current.activeId = null;
+    // Çizim biter bitmez shape'i seç — resize tutamaçları hemen belirsin.
+    if (finishedId) setSelected(finishedId);
   };
 
   const onCropHandleMouseDown = (handle: CropHandle, e: Konva.KonvaEventObject<MouseEvent>) => {
@@ -391,15 +500,14 @@ function CanvasWithImage() {
     if (tool === 'number') {
       const p = getPointer();
       if (!p) return;
-      // Mevcut number shape'lerinden bir sonraki numarayı bul.
       const next =
         shapes.filter((s) => s.type === 'number').reduce((m, s) => {
           return s.type === 'number' && s.value > m ? s.value : m;
         }, 0) + 1;
-      // Stroke kalınlığına göre yarıçap — büyük strokeWidth = büyük numara.
       const radius = Math.max(14, strokeWidth * 4);
+      const newId = genId();
       beginShape({
-        id: genId(),
+        id: newId,
         type: 'number',
         x: p.x,
         y: p.y,
@@ -407,6 +515,7 @@ function CanvasWithImage() {
         radius,
         fill: color,
       });
+      setSelected(newId);
       return;
     }
     if (tool === 'select') {
@@ -432,6 +541,7 @@ function CanvasWithImage() {
           fontSize,
           fill: color,
         });
+        setSelected(editingText.id);
       }
     } else {
       if (trimmed.length === 0) {
@@ -497,9 +607,10 @@ function CanvasWithImage() {
                   imageEl={imgEl}
                   imageW={image.width}
                   imageH={image.height}
-                  selectable={tool === 'select'}
+                  tool={tool}
                   selected={selectedId === s.id}
                   onSelect={() => setSelected(s.id)}
+                  onSelectTool={() => setTool('select')}
                   onCommit={(updater) => commitUpdate(s.id, updater)}
                   onTextDblClick={onTextDblClick}
                   hidden={editingText?.id === s.id && !editingText.isNew}
@@ -523,6 +634,30 @@ function CanvasWithImage() {
                 />
               </Layer>
             )}
+            {tool !== 'crop' && selectedId && (() => {
+              const sel = shapes.find((s) => s.id === selectedId);
+              if (!sel) return null;
+              return (
+                <Layer>
+                  <ShapeResizeOverlay
+                    shape={sel}
+                    stageRef={stageRef}
+                    onHandleMouseDown={(handle: ResizeHandle, e: Konva.KonvaEventObject<MouseEvent>) => {
+                      e.cancelBubble = true;
+                      const p = getPointer();
+                      if (!p) return;
+                      shapeDrag.current = {
+                        active: true,
+                        shapeId: sel.id,
+                        handle,
+                        startPointer: p,
+                        startShape: sel,
+                      };
+                    }}
+                  />
+                </Layer>
+              );
+            })()}
           </Stage>
 
           {editingText && (
@@ -585,6 +720,7 @@ function CanvasWithImage() {
 
 // Crop seçim alanı dışını karartır + dashed border + resize handle'lar + taşıma alanı.
 type CropHandle = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
+type ResizeHandle = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | 'p1' | 'p2';
 
 function CropOverlay({
   rect,
@@ -607,7 +743,7 @@ function CropOverlay({
   };
 
   const dim = 'rgba(0, 0, 0, 0.45)';
-  const hs = 24; // handle boyutu (px, image-space)
+  const hs = 50; // handle boyutu (px, image-space)
   const cx = rect.x + rect.width / 2;
   const cy = rect.y + rect.height / 2;
   const r2 = rect.x + rect.width;
@@ -643,7 +779,7 @@ function CropOverlay({
         onMouseLeave={() => setCursor('default')}
       />
       {/* Crop çerçevesi */}
-      <KRect x={rect.x} y={rect.y} width={rect.width} height={rect.height} stroke="#3b82f6" strokeWidth={4} dash={[12, 7]} listening={false} />
+      <KRect x={rect.x} y={rect.y} width={rect.width} height={rect.height} stroke="#3b82f6" strokeWidth={20} dash={[12, 7]} listening={false} />
       {/* Resize handle'lar — resim sınırı içinde kalacak şekilde clamp edilir */}
       {handles.map((h) => {
         const hx = Math.max(0, Math.min(h.x - hs / 2, imageW - hs));
@@ -657,7 +793,7 @@ function CropOverlay({
             height={hs}
             fill="white"
             stroke="#3b82f6"
-            strokeWidth={3}
+            strokeWidth={15}
             cornerRadius={4}
             shadowColor="rgba(0,0,0,0.5)"
             shadowBlur={6}
@@ -673,20 +809,119 @@ function CropOverlay({
   );
 }
 
+// Seçili shape'in bounding box'ı etrafında resize tutamaçları gösterir.
+// Her shape tipine göre bbox veya endpoint tabanlı handle konumları hesaplanır.
+function ShapeResizeOverlay({
+  shape,
+  stageRef,
+  onHandleMouseDown,
+}: {
+  shape: Shape;
+  stageRef: React.RefObject<Konva.Stage | null>;
+  onHandleMouseDown: (handle: ResizeHandle, e: Konva.KonvaEventObject<MouseEvent>) => void;
+}) {
+  const setCursor = (c: string) => {
+    const container = stageRef.current?.container();
+    if (container) container.style.cursor = c;
+  };
+
+  const hs = 50; // handle boyutu (image-space px)
+  const stroke = '#3b82f6';
+
+  // Bounding box handles — rect, blur, text, number, pen
+  const bboxHandles = (
+    bx: number, by: number, bw: number, bh: number,
+  ): { id: ResizeHandle; x: number; y: number; cursor: string }[] => {
+    const cx = bx + bw / 2;
+    const cy = by + bh / 2;
+    const r = bx + bw;
+    const b = by + bh;
+    return [
+      { id: 'nw', x: bx, y: by,  cursor: 'nw-resize' },
+      { id: 'n',  x: cx, y: by,  cursor: 'n-resize'  },
+      { id: 'ne', x: r,  y: by,  cursor: 'ne-resize' },
+      { id: 'e',  x: r,  y: cy,  cursor: 'e-resize'  },
+      { id: 'se', x: r,  y: b,   cursor: 'se-resize' },
+      { id: 's',  x: cx, y: b,   cursor: 's-resize'  },
+      { id: 'sw', x: bx, y: b,   cursor: 'sw-resize' },
+      { id: 'w',  x: bx, y: cy,  cursor: 'w-resize'  },
+    ];
+  };
+
+  let borderEl: React.ReactNode = null;
+  let handles: { id: ResizeHandle; x: number; y: number; cursor: string }[] = [];
+
+  if (shape.type === 'rect' || shape.type === 'blur') {
+    const { x, y, width, height } = shape;
+    borderEl = <KRect x={x} y={y} width={width} height={height} stroke={stroke} strokeWidth={10} dash={[6, 4]} listening={false} />;
+    handles = bboxHandles(x, y, width, height);
+  } else if (shape.type === 'pen') {
+    const pts = shape.points;
+    const xs = pts.filter((_, i) => i % 2 === 0);
+    const ys = pts.filter((_, i) => i % 2 !== 0);
+    const bx = Math.min(...xs); const by = Math.min(...ys);
+    const bw = Math.max(...xs) - bx; const bh = Math.max(...ys) - by;
+    borderEl = <KRect x={bx} y={by} width={bw} height={bh} stroke={stroke} strokeWidth={10} dash={[6, 4]} listening={false} />;
+    handles = bboxHandles(bx, by, bw, bh);
+  } else if (shape.type === 'arrow') {
+    const [x1, y1, x2, y2] = shape.points;
+    borderEl = null; // ok için çerçeve yok, sadece endpoint handle'lar
+    handles = [
+      { id: 'p1', x: x1, y: y1, cursor: 'move' },
+      { id: 'p2', x: x2, y: y2, cursor: 'move' },
+    ];
+  } else if (shape.type === 'text') {
+    // KText'in bounding box'ını yaklaşık hesapla
+    const approxW = shape.text.split('\n').reduce((m, l) => Math.max(m, l.length), 0) * shape.fontSize * 0.6;
+    const approxH = shape.text.split('\n').length * shape.fontSize * 1.2;
+    borderEl = <KRect x={shape.x} y={shape.y} width={approxW} height={approxH} stroke={stroke} strokeWidth={10} dash={[6, 4]} listening={false} />;
+    handles = bboxHandles(shape.x, shape.y, approxW, approxH);
+  } else if (shape.type === 'number') {
+    const { x, y, radius: r } = shape;
+    borderEl = <KCircle x={x} y={y} radius={r + 4} stroke={stroke} strokeWidth={10} dash={[6, 4]} listening={false} />;
+    handles = bboxHandles(x - r, y - r, r * 2, r * 2);
+  }
+
+  return (
+    <>
+      {borderEl}
+      {handles.map((h) => (
+        <KRect
+          key={h.id}
+          x={h.x - hs / 2}
+          y={h.y - hs / 2}
+          width={hs}
+          height={hs}
+          fill="white"
+          stroke={stroke}
+          strokeWidth={10}
+          cornerRadius={3}
+          shadowColor="rgba(0,0,0,0.4)"
+          shadowBlur={4}
+          shadowOffsetY={1}
+          onMouseDown={(e) => onHandleMouseDown(h.id, e)}
+          onMouseEnter={() => setCursor(h.cursor)}
+          onMouseLeave={() => setCursor('default')}
+        />
+      ))}
+    </>
+  );
+}
+
 function ShapeNode(props: {
   shape: Shape;
   imageEl: HTMLImageElement;
   imageW: number;
   imageH: number;
-  selectable: boolean;
+  tool: string;
   selected: boolean;
   onSelect: () => void;
+  onSelectTool: () => void;
   onCommit: (updater: (s: Shape) => Shape) => void;
   onTextDblClick: (id: string) => void;
   hidden: boolean;
 }) {
-  const { shape: s, imageEl, selectable, selected, onSelect, onCommit, onTextDblClick, hidden } =
-    props;
+  const { shape: s, imageEl, tool, selected, onSelect, onSelectTool, onCommit, onTextDblClick, hidden } = props;
   const blurRef = useRef<Konva.Image>(null);
 
   // Blur node'unun filter'ı çalışsın diye cache et.
@@ -701,29 +936,28 @@ function ShapeNode(props: {
 
   if (hidden) return null;
 
-  // Seçili shape'lerde sarı parıltı highlight'ı.
+  // Crop dışındaki tüm tool'larda shape'e tıklanabilir.
+  const clickable = tool !== 'crop';
+  // Sadece select tool'da sürüklenebilir.
+  const draggable = tool === 'select';
+
   const highlightProps = selected
-    ? {
-        shadowColor: '#fbbf24',
-        shadowBlur: 12,
-        shadowOpacity: 0.9,
-      }
+    ? { shadowColor: '#fbbf24', shadowBlur: 12, shadowOpacity: 0.9 }
     : {};
 
-  // Select tool'da event'leri dinle ve drag'i aç. Diğer tool'larda eski
-  // davranış (listening:false) — annotation aleti çizerken shape üstünden
-  // geçince yanlışlıkla yakalanmasın.
-  const interactive = selectable
+  const interactive = clickable
     ? {
         listening: true,
-        draggable: true,
+        draggable,
         onClick: (e: Konva.KonvaEventObject<MouseEvent>) => {
           e.cancelBubble = true;
           onSelect();
+          if (tool !== 'select') onSelectTool();
         },
         onTap: (e: Konva.KonvaEventObject<TouchEvent>) => {
           e.cancelBubble = true;
           onSelect();
+          if (tool !== 'select') onSelectTool();
         },
       }
     : { listening: false as const };
@@ -742,7 +976,7 @@ function ShapeNode(props: {
           lineJoin="round"
           // Drag bittiğinde points dizisini node offset'i ile dengele.
           onDragEnd={(e) => {
-            if (!selectable) return;
+            if (!draggable) return;
             const node = e.target;
             const dx = node.x();
             const dy = node.y();
@@ -766,7 +1000,7 @@ function ShapeNode(props: {
           stroke={s.stroke}
           strokeWidth={s.strokeWidth}
           onDragEnd={(e) => {
-            if (!selectable) return;
+            if (!draggable) return;
             const node = e.target;
             onCommit((sh) =>
               sh.type === 'rect' ? { ...sh, x: node.x(), y: node.y() } : sh,
@@ -783,10 +1017,10 @@ function ShapeNode(props: {
           stroke={s.stroke}
           fill={s.stroke}
           strokeWidth={s.strokeWidth}
-          pointerLength={Math.max(8, s.strokeWidth * 3)}
-          pointerWidth={Math.max(8, s.strokeWidth * 3)}
+          pointerLength={Math.max(8, s.strokeWidth * s.headSize)}
+          pointerWidth={Math.max(8, s.strokeWidth * s.headSize)}
           onDragEnd={(e) => {
-            if (!selectable) return;
+            if (!draggable) return;
             const node = e.target;
             const dx = node.x();
             const dy = node.y();
@@ -820,7 +1054,7 @@ function ShapeNode(props: {
           filters={[Konva.Filters.Blur]}
           blurRadius={s.blurRadius}
           onDragEnd={(e) => {
-            if (!selectable) return;
+            if (!draggable) return;
             const node = e.target;
             // Blur shape'i taşıyınca crop kaynağı da güncellensin (yeni
             // pozisyondan crop alıyor).
@@ -844,14 +1078,14 @@ function ShapeNode(props: {
           onDblClick={() => onTextDblClick(s.id)}
           onMouseEnter={(e) => {
             const stage = e.target.getStage();
-            if (stage) stage.container().style.cursor = selectable ? 'move' : 'text';
+            if (stage) stage.container().style.cursor = draggable ? 'move' : 'text';
           }}
           onMouseLeave={(e) => {
             const stage = e.target.getStage();
             if (stage) stage.container().style.cursor = '';
           }}
           onDragEnd={(e) => {
-            if (!selectable) return;
+            if (!draggable) return;
             const node = e.target;
             onCommit((sh) =>
               sh.type === 'text' ? { ...sh, x: node.x(), y: node.y() } : sh,
@@ -871,7 +1105,7 @@ function ShapeNode(props: {
           x={s.x}
           y={s.y}
           onDragEnd={(e) => {
-            if (!selectable) return;
+            if (!draggable) return;
             const node = e.target;
             onCommit((sh) =>
               sh.type === 'number' ? { ...sh, x: node.x(), y: node.y() } : sh,
@@ -941,6 +1175,7 @@ function EmptyState() {
   const startWindow = useRecordingStore((s) => s.startWindow);
   const startArea = useRecordingStore((s) => s.startArea);
   const [windowPickerOpen, setWindowPickerOpen] = useState(false);
+  const [captureWindowPickerOpen, setCaptureWindowPickerOpen] = useState(false);
 
   const startFullscreenRecording = () => {
     if (recordingActive) return;
@@ -955,6 +1190,15 @@ function EmptyState() {
   const onPickWindow = (source: SourceInfo) => {
     setWindowPickerOpen(false);
     void startWindow(source);
+  };
+
+  const setImage = useEditorStore((s) => s.setImage);
+
+  const onPickCaptureWindow = (source: SourceInfo) => {
+    setCaptureWindowPickerOpen(false);
+    void window.api.capture
+      .screenshot({ mode: 'window', sourceId: source.id })
+      .then((r) => setImage(r.pngBuffer, r.width, r.height, r.capturedAt));
   };
 
   const startAreaRecordingFlow = () => {
@@ -993,11 +1237,15 @@ function EmptyState() {
                   label="Tam Ekran"
                   hint={shortcuts?.captureFullscreen ?? ''}
                 />
-                <CaptureButton
-                  mode="window"
-                  label="Pencere"
-                  hint={shortcuts?.captureWindow ?? ''}
-                />
+                <button
+                  onClick={() => setCaptureWindowPickerOpen(true)}
+                  className="flex items-center justify-between px-4 py-3 rounded-xl bg-surface-raised hover:bg-surface-hover border border-surface-border transition-colors group"
+                >
+                  <span className="text-fg font-medium">Pencere</span>
+                  <span className="text-xs text-fg-subtle font-mono group-hover:text-fg-muted">
+                    {shortcuts?.captureWindow ?? ''}
+                  </span>
+                </button>
               </div>
             </div>
 
@@ -1051,6 +1299,13 @@ function EmptyState() {
         title="Kaydedilecek Pencereyi Seç"
         onCancel={() => setWindowPickerOpen(false)}
         onPick={onPickWindow}
+      />
+      <SourcePicker
+        open={captureWindowPickerOpen}
+        type="window"
+        title="Ekran Görüntüsü Alınacak Pencereyi Seç"
+        onCancel={() => setCaptureWindowPickerOpen(false)}
+        onPick={onPickCaptureWindow}
       />
     </>
   );

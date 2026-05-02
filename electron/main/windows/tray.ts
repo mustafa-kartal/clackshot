@@ -15,23 +15,20 @@ import { log } from '../utils/logger';
 
 let tray: Tray | null = null;
 
-// Resources path'i: dev'de proje root altında, packaged'da
-// process.resourcesPath altına `extraResources` ile kopyalanır.
-function resolveFaviconPath(): string {
+function resolveTrayIconPath(): string {
   if (app.isPackaged) {
-    return join(process.resourcesPath, 'icons', 'favicon-dark.png');
+    return join(process.resourcesPath, 'icons', 'macOS-tray-icon.png');
   }
-  return join(app.getAppPath(), 'resources', 'icons', 'favicon-dark.png');
+  return join(app.getAppPath(), 'resources', 'icons', 'macOS-tray-icon.png');
 }
 
 async function buildTrayIcon(): Promise<NativeImage> {
   try {
-    const buf = await readFile(resolveFaviconPath());
+    const buf = await readFile(resolveTrayIconPath());
     // macOS menubar için 18pt logical → retina'da 36px. Sharp ile küçültüp
     // 2x scaleFactor ile NativeImage'a sar — menubar net görünür.
     const png = await sharp(buf).resize(36, 36).png().toBuffer();
     const icon = nativeImage.createFromBuffer(png, { scaleFactor: 2.0 });
-    // setTemplateImage YOK — renkli logo, menubar tema rengini takip etmez.
     return icon;
   } catch (err) {
     log.warn('Tray icon oluşturulamadı, boş ikon kullanılıyor', err);

@@ -7,17 +7,11 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// Vite konfigürasyonu.
-// - Main process: ESM olarak build edilir (package.json "type":"module").
-// - Preload script'leri: vite-plugin-electron CJS format'ı es geçtiği için,
-//   esbuild ile scripts/dev.mjs ve scripts/build-preload.mjs üzerinden derlenir.
-// - Renderer: standart Vite multi-page (overlay + editor).
 export default defineConfig({
   plugins: [
     react(),
     electron([
       {
-        // Sadece ana süreç. Preload'lar Vite dışında esbuild ile derleniyor.
         entry: 'electron/main/index.ts',
         vite: {
           build: {

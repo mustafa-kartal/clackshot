@@ -7,13 +7,11 @@
 //    download'ları açılırken hata verir. Win/Linux'ta sorun yok.
 //  - Publish konfigürasyonu electron-builder.yml'da; GitHub releases veya
 //    custom server URL kullanılabilir.
-// electron-updater CJS export ediyor; ESM'de default import üzerinden alıyoruz.
-import electronUpdater from 'electron-updater';
+import pkg from 'electron-updater';
+const { autoUpdater } = pkg;
 import type { BrowserWindow } from 'electron';
 import { app, dialog } from 'electron';
 import { log } from './utils/logger';
-
-const { autoUpdater } = electronUpdater;
 
 let mainWindowRef: () => BrowserWindow | null = () => null;
 

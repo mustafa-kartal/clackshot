@@ -39,12 +39,18 @@ export default {
       animation: {
         'fade-in': 'fadeIn 150ms ease-out',
         'scale-in': 'scaleIn 120ms ease-out',
+        'progress-indeterminate': 'progressIndeterminate 1.4s ease-in-out infinite',
       },
       keyframes: {
         fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
         scaleIn: {
           '0%': { opacity: '0', transform: 'scale(0.96)' },
           '100%': { opacity: '1', transform: 'scale(1)' },
+        },
+        progressIndeterminate: {
+          '0%': { transform: 'translateX(-100%) scaleX(0.3)' },
+          '40%': { transform: 'translateX(0%) scaleX(0.6)' },
+          '100%': { transform: 'translateX(200%) scaleX(0.3)' },
         },
       },
     },

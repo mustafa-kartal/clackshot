@@ -64,6 +64,10 @@ export interface IpcApi {
   };
   shell: {
     showItemInFolder(path: string): Promise<void>;
+    openExternal(url: string): Promise<void>;
+  };
+  imgur: {
+    upload(png: ArrayBuffer): Promise<string>;
   };
   on: {
     captureCompleted(handler: (result: CaptureResult) => void): () => void;

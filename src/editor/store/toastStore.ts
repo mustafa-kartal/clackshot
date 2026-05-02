@@ -1,21 +1,18 @@
-// Basit toast bildirim sistemi. Save/copy/error gibi akışlar `push()` ile
-// bildirim ekler; ToastHost UI'ı her toast'u render eder ve süresi dolunca
-// otomatik kaldırır.
 import { create } from 'zustand';
 
-export type ToastType = 'info' | 'success' | 'error';
+export type ToastType = 'info' | 'success' | 'error' | 'loading';
 
 export interface Toast {
   id: string;
   type: ToastType;
   message: string;
-  // İsteğe bağlı: aksiyon (örn. "Klasörü Aç" link'i)
   action?: { label: string; onClick(): void };
 }
 
 interface ToastState {
   toasts: Toast[];
-  push(t: Omit<Toast, 'id'>, durationMs?: number): void;
+  push(t: Omit<Toast, 'id'>, durationMs?: number): string;
+  update(id: string, t: Partial<Omit<Toast, 'id'>>, durationMs?: number): void;
   dismiss(id: string): void;
 }
 
@@ -29,21 +26,36 @@ export const useToastStore = create<ToastState>((set, get) => ({
     if (durationMs > 0) {
       window.setTimeout(() => get().dismiss(id), durationMs);
     }
+    return id;
+  },
+  update(id, t, durationMs = 3500) {
+    set({ toasts: get().toasts.map((x) => (x.id === id ? { ...x, ...t } : x)) });
+    if (durationMs > 0) {
+      window.setTimeout(() => get().dismiss(id), durationMs);
+    }
   },
   dismiss(id) {
     set({ toasts: get().toasts.filter((x) => x.id !== id) });
   },
 }));
 
-// Helper aliases — call site'lar daha okunaklı olsun.
 export const toast = {
   info(message: string) {
-    useToastStore.getState().push({ type: 'info', message });
+    return useToastStore.getState().push({ type: 'info', message });
   },
   success(message: string, action?: Toast['action']) {
-    useToastStore.getState().push({ type: 'success', message, action });
+    return useToastStore.getState().push({ type: 'success', message, action });
   },
   error(message: string) {
-    useToastStore.getState().push({ type: 'error', message }, 5000);
+    return useToastStore.getState().push({ type: 'error', message }, 5000);
+  },
+  loading(message: string) {
+    return useToastStore.getState().push({ type: 'loading', message }, 0);
+  },
+  update(id: string, t: Partial<Omit<Toast, 'id'>>, durationMs?: number) {
+    useToastStore.getState().update(id, t, durationMs);
+  },
+  dismiss(id: string) {
+    useToastStore.getState().dismiss(id);
   },
 };

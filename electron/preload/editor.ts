@@ -46,6 +46,10 @@ const api: IpcApi = {
   },
   shell: {
     showItemInFolder: (path) => ipcRenderer.invoke(IPC.shell.showItemInFolder, path),
+    openExternal: (url) => ipcRenderer.invoke(IPC.shell.openExternal, url),
+  },
+  imgur: {
+    upload: (png) => ipcRenderer.invoke(IPC.imgur.upload, png),
   },
   on: {
     captureCompleted(handler) {

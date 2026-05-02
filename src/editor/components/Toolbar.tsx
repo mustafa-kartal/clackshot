@@ -5,7 +5,8 @@
 // Save/copy: native canvas üzerinde flatten yapar — Konva.Stage.toCanvas
 // scale+pixelRatio kombinasyonunda güvenilir değil, doğrudan compositing
 // daha sağlam.
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, useState, useCallback, type ReactNode, type RefObject } from 'react';
+import { createPortal } from 'react-dom';
 import { useEditorStore, type Shape, type Tool } from '../store/editorStore';
 import { useConfigStore } from '../store/configStore';
 import { toast } from '../store/toastStore';
@@ -22,22 +23,99 @@ const TOOLS: Array<{ id: Tool; label: string; icon: ReactNode }> = [
   { id: 'crop', label: 'Kırp', icon: <CropIcon /> },
 ];
 
-const COLORS = ['#ef4444', '#f59e0b', '#22c55e', '#3b82f6', '#ffffff'];
-const STROKES = [2, 4, 8];
+const PRESET_COLORS = ['#ef4444', '#f59e0b', '#22c55e', '#3b82f6', '#ffffff', '#000000'];
+const FONT_SIZE_MIN = 8;
+const FONT_SIZE_MAX = 120;
+const STROKE_MIN = 1;
+const STROKE_MAX = 64;
 
-export function Toolbar() {
+export function ToolsBar() {
   const image = useEditorStore((s) => s.image);
   const tool = useEditorStore((s) => s.tool);
   const color = useEditorStore((s) => s.color);
   const strokeWidth = useEditorStore((s) => s.strokeWidth);
+  const fontSize = useEditorStore((s) => s.fontSize);
   const past = useEditorStore((s) => s.past);
   const future = useEditorStore((s) => s.future);
+  const blurRadius = useEditorStore((s) => s.blurRadius);
   const setTool = useEditorStore((s) => s.setTool);
   const setColor = useEditorStore((s) => s.setColor);
   const setStrokeWidth = useEditorStore((s) => s.setStrokeWidth);
+  const setFontSize = useEditorStore((s) => s.setFontSize);
+  const setBlurRadius = useEditorStore((s) => s.setBlurRadius);
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
+
+  if (!image) return null;
+
+  return (
+    <div className="shrink-0 border-b border-surface-border bg-surface-raised/60 backdrop-blur">
+      <div className="flex items-center justify-center gap-2 px-3 py-2 overflow-x-auto">
+        {/* Tools */}
+        <div className="flex items-center gap-0.5">
+          {TOOLS.map((t) => (
+            <ToolButton
+              key={t.id}
+              label={t.label}
+              icon={t.icon}
+              active={tool === t.id}
+              onClick={() => setTool(t.id)}
+            />
+          ))}
+        </div>
+
+        <Divider />
+
+        {/* Renkler */}
+        <ColorPicker color={color} onChangeColor={setColor} />
+
+        <Divider />
+
+        {/* Stroke kalınlığı — select ve text hariç tüm araçlarda göster */}
+        {!['select', 'text', 'crop', 'blur', 'number'].includes(tool) && (
+          <>
+            <StrokePicker strokeWidth={strokeWidth} onChangeStrokeWidth={setStrokeWidth} />
+            <Divider />
+          </>
+        )}
+
+        {/* Font boyutu — yalnızca text toolunda göster */}
+        {tool === 'text' && (
+          <>
+            <FontSizePicker fontSize={fontSize} onChangeFontSize={setFontSize} />
+            <Divider />
+          </>
+        )}
+
+        {/* Blur seviyesi — yalnızca blur toolunda göster */}
+        {tool === 'blur' && (
+          <>
+            <BlurRadiusPicker blurRadius={blurRadius} onChangeBlurRadius={setBlurRadius} />
+            <Divider />
+          </>
+        )}
+
+
+        {/* Undo/Redo */}
+        <div className="flex items-center gap-0.5">
+          <IconButton label="Geri al" onClick={undo} disabled={past.length === 0}>
+            <UndoIcon />
+          </IconButton>
+          <IconButton label="Yinele" onClick={redo} disabled={future.length === 0}>
+            <RedoIcon />
+          </IconButton>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function ActionBar() {
+  const image = useEditorStore((s) => s.image);
   const defaultFormat = useConfigStore((s) => s.defaultFormat) ?? 'png';
+  const shapes = useEditorStore((s) => s.shapes);
+  const resetAnnotations = useEditorStore((s) => s.resetAnnotations);
+  const [uploading, setUploading] = useState(false);
 
   // Klavye kısayolları: Cmd/Ctrl+Z undo, Cmd+Shift+Z redo, Cmd+S kaydet,
   // Cmd+C kopyala, Esc kapat.
@@ -56,25 +134,18 @@ export function Toolbar() {
       const mod = e.metaKey || e.ctrlKey;
       if (!mod) return;
 
-      if (e.key === 'z' || e.key === 'Z') {
-        e.preventDefault();
-        if (e.shiftKey) redo();
-        else undo();
-      } else if (e.key === 's' || e.key === 'S') {
+      if (e.key === 's' || e.key === 'S') {
         e.preventDefault();
         void onSave();
       } else if (e.key === 'c' || e.key === 'C') {
-        // Kullanıcı zaten metin seçmediyse copy=görsel; metin seçmişse default
-        // bırak (textarea kontrolü zaten yukarıda).
         e.preventDefault();
         void onCopy();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-    // onSave/onCopy intentionally omitted — closure-stable her render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [image, undo, redo]);
+  }, [image]);
 
   if (!image) return null;
 
@@ -85,7 +156,15 @@ export function Toolbar() {
       return;
     }
     try {
-      const path = await window.api.editor.saveImage(buf, `screenshot-${image.capturedAt}.${defaultFormat}`);
+      const d = new Date(image.capturedAt);
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const yyyy = d.getFullYear();
+      const H = String(d.getHours()).padStart(2, '0');
+      const i = String(d.getMinutes()).padStart(2, '0');
+      const s = String(d.getSeconds()).padStart(2, '0');
+      const stamp = `${dd}-${mm}-${yyyy}-${H}-${i}-${s}`;
+      const path = await window.api.editor.saveImage(buf, `clackshot-screenshot-${stamp}.${defaultFormat}`);
       if (path) {
         const fileName = path.split('/').pop() ?? path;
         toast.success(`Kaydedildi: ${fileName}`, { label: 'Klasörü Göster', onClick: () => window.api.shell.showItemInFolder(path) });
@@ -112,64 +191,38 @@ export function Toolbar() {
     }
   };
 
+  const onUpload = async () => {
+    const buf = await flattenStage('png');
+    if (!buf) {
+      toast.error('Görüntü hazırlanamadı');
+      return;
+    }
+    setUploading(true);
+    const toastId = toast.loading('Imgur\'a yükleniyor…');
+    try {
+      const link = await window.api.imgur.upload(buf);
+      await navigator.clipboard.writeText(link);
+      toast.update(toastId, {
+        type: 'success',
+        message: 'Link panoya kopyalandı!',
+        action: { label: 'Aç', onClick: () => window.api.shell.openExternal(link) },
+      });
+    } catch (err) {
+      console.error('[imgur] upload error:', err);
+      toast.update(toastId, { type: 'error', message: 'Imgur\'a yüklenemedi' }, 5000);
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const onClose = () => window.api.editor.closeEditor();
 
   return (
     <div className="shrink-0 border-t border-surface-border bg-surface-raised/60 backdrop-blur">
-      <div className="flex items-center gap-2 px-3 py-2 overflow-x-auto">
-        {/* Tools */}
-        <div className="flex items-center gap-0.5">
-          {TOOLS.map((t) => (
-            <ToolButton
-              key={t.id}
-              label={t.label}
-              icon={t.icon}
-              active={tool === t.id}
-              onClick={() => setTool(t.id)}
-            />
-          ))}
-        </div>
-
-        <Divider />
-
-        {/* Renkler */}
-        <div className="flex items-center gap-1.5 px-1">
-          {COLORS.map((c) => (
-            <ColorSwatch key={c} color={c} active={color === c} onClick={() => setColor(c)} />
-          ))}
-        </div>
-
-        <Divider />
-
-        {/* Stroke kalınlığı */}
-        <div className="flex items-center gap-0.5">
-          {STROKES.map((w) => (
-            <StrokeButton
-              key={w}
-              size={w}
-              active={strokeWidth === w}
-              onClick={() => setStrokeWidth(w)}
-            />
-          ))}
-        </div>
-
-        <Divider />
-
-        {/* Undo/Redo */}
-        <div className="flex items-center gap-0.5">
-          <IconButton label="Geri al" onClick={undo} disabled={past.length === 0}>
-            <UndoIcon />
-          </IconButton>
-          <IconButton label="Yinele" onClick={redo} disabled={future.length === 0}>
-            <RedoIcon />
-          </IconButton>
-        </div>
-
-        {/* Esnek boşluk → aksiyonlar sağa yapışsın */}
-        <div className="flex-1" />
-
-        {/* Aksiyonlar */}
+      <div className="flex items-center justify-between gap-1 px-3 py-2">
+        <ActionButton label="Temizle" icon={<TrashIcon />} onClick={resetAnnotations} disabled={shapes.length === 0} danger />
         <div className="flex items-center gap-1">
+          <ActionButton label={uploading ? 'Yükleniyor…' : 'Paylaş'} icon={<ShareIcon />} onClick={onUpload} disabled={uploading} />
           <ActionButton label="Kopyala" icon={<CopyIcon />} onClick={onCopy} />
           <ActionButton label="Kaydet" icon={<SaveIcon />} primary onClick={onSave} />
           <IconButton label="Kapat" onClick={onClose}>
@@ -181,62 +234,283 @@ export function Toolbar() {
   );
 }
 
+// Undo/Redo klavye kısayollarını yönetir — ToolsBar içinden ayrıldı ki
+// ActionBar ile ayrı lifecycle'da çalışabilsin.
+export function UndoRedoKeyHandler() {
+  const image = useEditorStore((s) => s.image);
+  const undo = useEditorStore((s) => s.undo);
+  const redo = useEditorStore((s) => s.redo);
+
+  useEffect(() => {
+    if (!image) return;
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
+      const mod = e.metaKey || e.ctrlKey;
+      if (!mod) return;
+      if (e.key === 'z' || e.key === 'Z') {
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [image, undo, redo]);
+
+  return null;
+}
+
 function ToolButton(props: {
   label: string;
   icon: ReactNode;
   active: boolean;
   onClick: () => void;
 }) {
+  const { ref, tooltip, onMouseEnter, onMouseLeave } = useTooltip(props.label);
   return (
-    <button
-      onClick={props.onClick}
-      title={props.label}
-      aria-label={props.label}
-      className={
-        'w-8 h-8 flex items-center justify-center rounded-md transition-colors ' +
-        (props.active
-          ? 'bg-accent text-white'
-          : 'text-fg-muted hover:bg-surface-hover hover:text-fg')
-      }
-    >
-      {props.icon}
-    </button>
+    <>
+      <button
+        ref={ref}
+        onClick={props.onClick}
+        aria-label={props.label}
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
+        className={
+          'w-8 h-8 flex items-center justify-center rounded-md transition-colors ' +
+          (props.active
+            ? 'bg-accent text-white'
+            : 'text-fg-muted hover:bg-surface-hover hover:text-fg')
+        }
+      >
+        {props.icon}
+      </button>
+      {tooltip}
+    </>
   );
 }
 
-function ColorSwatch(props: { color: string; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      onClick={props.onClick}
-      title={props.color}
-      aria-label={`Renk ${props.color}`}
-      className={
-        'w-5 h-5 rounded-full transition-transform ' +
-        (props.active
-          ? 'ring-2 ring-white ring-offset-2 ring-offset-surface-raised scale-110'
-          : 'hover:scale-110')
-      }
-      style={{ backgroundColor: props.color }}
-    />
-  );
-}
+function ColorPicker(props: { color: string; onChangeColor: (c: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const nativeRef = useRef<HTMLInputElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const { tooltip: colorTooltip, onMouseEnter: colorEnter, onMouseLeave: colorLeave } = useTooltip('Renk seç');
 
-function StrokeButton(props: { size: number; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      onClick={props.onClick}
-      title={`${props.size}px`}
-      aria-label={`Kalınlık ${props.size}px`}
-      className={
-        'w-8 h-8 flex items-center justify-center rounded-md transition-colors ' +
-        (props.active ? 'bg-surface-hover' : 'hover:bg-surface-hover')
-      }
+  const close = useCallback(() => setOpen(false), []);
+
+  const toggle = () => {
+    if (!open && triggerRef.current) {
+      const r = triggerRef.current.getBoundingClientRect();
+      setPos({ top: r.bottom + 4, left: r.left });
+    }
+    setOpen((v) => !v);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (
+        triggerRef.current?.contains(t) ||
+        dropdownRef.current?.contains(t)
+      ) return;
+      close();
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open, close]);
+
+  const dropdown = open ? createPortal(
+    <div
+      ref={dropdownRef}
+      style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
+      className="bg-surface-raised border border-surface-border rounded-lg shadow-lg p-2 flex items-center gap-1.5"
     >
-      <span
-        className="block rounded-full bg-zinc-200"
-        style={{ width: props.size + 2, height: props.size + 2 }}
+      {PRESET_COLORS.map((c) => (
+        <button
+          key={c}
+          onClick={() => { props.onChangeColor(c); close(); }}
+          title={c}
+          aria-label={`Renk ${c}`}
+          className={
+            'w-5 h-5 rounded-full transition-transform hover:scale-110 flex-shrink-0 ' +
+            (props.color === c ? 'ring-2 ring-white ring-offset-2 ring-offset-surface-raised scale-110' : '')
+          }
+          style={{ backgroundColor: c }}
+        />
+      ))}
+
+      <button
+        title="Özel renk seç"
+        aria-label="Özel renk seç"
+        onClick={() => nativeRef.current?.click()}
+        className={
+          'w-5 h-5 rounded-full border-2 border-dashed transition-transform hover:scale-110 flex-shrink-0 ' +
+          (!PRESET_COLORS.includes(props.color)
+            ? 'border-white scale-110'
+            : 'border-fg-subtle/50 hover:border-fg-subtle')
+        }
+        style={!PRESET_COLORS.includes(props.color) ? { backgroundColor: props.color } : { backgroundColor: 'transparent' }}
+      >
+        {PRESET_COLORS.includes(props.color) && (
+          <span className="text-fg-subtle text-[9px] leading-none flex items-center justify-center w-full h-full">+</span>
+        )}
+      </button>
+
+      <input
+        ref={nativeRef}
+        type="color"
+        value={props.color.startsWith('#') ? props.color : '#ef4444'}
+        onChange={(e) => props.onChangeColor(e.target.value)}
+        className="sr-only"
+        aria-hidden="true"
+        tabIndex={-1}
       />
-    </button>
+    </div>,
+    document.body,
+  ) : null;
+
+  return (
+    <div className="relative flex items-center px-1">
+      <button
+        ref={triggerRef}
+        onClick={toggle}
+        aria-label="Renk seç"
+        onMouseEnter={colorEnter}
+        onMouseLeave={colorLeave}
+        className={
+          'w-7 h-7 flex items-center justify-center rounded-md transition-colors ' +
+          (open ? 'bg-surface-hover' : 'hover:bg-surface-hover')
+        }
+      >
+        <span
+          className="w-4 h-4 rounded-full ring-1 ring-white/30 flex-shrink-0"
+          style={{ backgroundColor: props.color }}
+        />
+      </button>
+      {dropdown}
+      {colorTooltip}
+    </div>
+  );
+}
+
+function FontSizePicker(props: { fontSize: number; onChangeFontSize: (s: number) => void }) {
+  const clamp = (v: number) => Math.max(FONT_SIZE_MIN, Math.min(FONT_SIZE_MAX, v));
+  const decrement = () => props.onChangeFontSize(clamp(props.fontSize - 1));
+  const increment = () => props.onChangeFontSize(clamp(props.fontSize + 1));
+  const { ref, tooltip, onMouseEnter, onMouseLeave } = useTooltip<HTMLDivElement>('Yazı boyutu');
+
+  return (
+    <>
+      <div ref={ref} className="flex items-center gap-1" onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none" className="text-fg-muted flex-shrink-0" aria-hidden="true">
+          <text x="2" y="18" fontSize="20" fontWeight="700" fontFamily="system-ui,sans-serif">A</text>
+        </svg>
+        <div className="flex items-center gap-0.5">
+          <button
+            onClick={decrement}
+            aria-label="Yazı boyutunu küçült"
+            className="w-6 h-6 flex items-center justify-center rounded text-fg-muted hover:bg-surface-hover hover:text-fg transition-colors text-sm leading-none"
+          >
+            −
+          </button>
+          <span className="w-9 h-6 text-center text-xs flex items-center justify-center text-fg tabular-nums select-none">
+            {props.fontSize}
+          </span>
+          <button
+            onClick={increment}
+            aria-label="Yazı boyutunu büyüt"
+            className="w-6 h-6 flex items-center justify-center rounded text-fg-muted hover:bg-surface-hover hover:text-fg transition-colors text-sm leading-none"
+          >
+            +
+          </button>
+        </div>
+      </div>
+      {tooltip}
+    </>
+  );
+}
+
+function BlurRadiusPicker(props: { blurRadius: number; onChangeBlurRadius: (r: number) => void }) {
+  const clamp = (v: number) => Math.max(1, Math.min(50, v));
+  const { ref, tooltip, onMouseEnter, onMouseLeave } = useTooltip<HTMLDivElement>('Bulanıklık seviyesi');
+
+  return (
+    <>
+      <div ref={ref} className="flex items-center gap-1" onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-fg-muted flex-shrink-0" aria-hidden="true">
+          <circle cx="12" cy="12" r="3" strokeWidth="2.5" />
+          <circle cx="12" cy="12" r="7" strokeOpacity="0.5" />
+          <circle cx="12" cy="12" r="10.5" strokeOpacity="0.2" />
+        </svg>
+        <div className="flex items-center gap-0.5">
+          <button
+            onClick={() => props.onChangeBlurRadius(clamp(props.blurRadius - 1))}
+            aria-label="Bulanıklığı azalt"
+            className="w-6 h-6 flex items-center justify-center rounded text-fg-muted hover:bg-surface-hover hover:text-fg transition-colors text-sm leading-none"
+          >
+            −
+          </button>
+          <span className="w-9 h-6 text-center text-xs flex items-center justify-center text-fg tabular-nums select-none">
+            {props.blurRadius}
+          </span>
+          <button
+            onClick={() => props.onChangeBlurRadius(clamp(props.blurRadius + 1))}
+            aria-label="Bulanıklığı artır"
+            className="w-6 h-6 flex items-center justify-center rounded text-fg-muted hover:bg-surface-hover hover:text-fg transition-colors text-sm leading-none"
+          >
+            +
+          </button>
+        </div>
+      </div>
+      {tooltip}
+    </>
+  );
+}
+
+function StrokePicker(props: { strokeWidth: number; onChangeStrokeWidth: (w: number) => void }) {
+  const clamp = (v: number) => Math.max(STROKE_MIN, Math.min(STROKE_MAX, v));
+  const decrement = () => props.onChangeStrokeWidth(clamp(props.strokeWidth - 1));
+  const increment = () => props.onChangeStrokeWidth(clamp(props.strokeWidth + 1));
+  const { ref, tooltip, onMouseEnter, onMouseLeave } = useTooltip<HTMLDivElement>('Çizgi kalınlığı');
+
+  return (
+    <>
+      <div ref={ref} className="flex items-center gap-1" onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="text-fg-muted flex-shrink-0" aria-hidden="true">
+          <line x1="4" y1="7" x2="20" y2="7" strokeWidth="2" strokeLinecap="round" />
+          <line x1="4" y1="12" x2="20" y2="12" strokeWidth="4" strokeLinecap="round" />
+          <line x1="4" y1="18" x2="20" y2="18" strokeWidth="6" strokeLinecap="round" />
+        </svg>
+        <div className="flex items-center gap-0.5">
+          <button
+            onClick={decrement}
+            aria-label="Kalınlığı azalt"
+            className="w-6 h-6 flex items-center justify-center rounded text-fg-muted hover:bg-surface-hover hover:text-fg transition-colors text-sm leading-none"
+          >
+            −
+          </button>
+          <span className="w-9 h-6 text-center text-xs flex items-center justify-center text-fg tabular-nums select-none">
+            {props.strokeWidth}
+          </span>
+          <button
+            onClick={increment}
+            aria-label="Kalınlığı artır"
+            className="w-6 h-6 flex items-center justify-center rounded text-fg-muted hover:bg-surface-hover hover:text-fg transition-colors text-sm leading-none"
+          >
+            +
+          </button>
+        </div>
+      </div>
+      {tooltip}
+    </>
   );
 }
 
@@ -246,21 +520,27 @@ function IconButton(props: {
   onClick: () => void;
   children: ReactNode;
 }) {
+  const { ref, tooltip, onMouseEnter, onMouseLeave } = useTooltip(props.label);
   return (
-    <button
-      onClick={props.onClick}
-      disabled={props.disabled}
-      title={props.label}
-      aria-label={props.label}
-      className={
-        'w-8 h-8 flex items-center justify-center rounded-md transition-colors ' +
-        (props.disabled
-          ? 'text-fg-subtle/60 cursor-not-allowed'
-          : 'text-fg-muted hover:bg-surface-hover hover:text-fg')
-      }
-    >
-      {props.children}
-    </button>
+    <>
+      <button
+        ref={ref}
+        onClick={props.onClick}
+        disabled={props.disabled}
+        aria-label={props.label}
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
+        className={
+          'w-8 h-8 flex items-center justify-center rounded-md transition-colors ' +
+          (props.disabled
+            ? 'text-fg-subtle/60 cursor-not-allowed'
+            : 'text-fg-muted hover:bg-surface-hover hover:text-fg')
+        }
+      >
+        {props.children}
+      </button>
+      {tooltip}
+    </>
   );
 }
 
@@ -269,16 +549,22 @@ function ActionButton(props: {
   icon: ReactNode;
   onClick: () => void;
   primary?: boolean;
+  danger?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <button
       onClick={props.onClick}
-      title={props.label}
+      disabled={props.disabled}
       className={
         'flex items-center gap-1.5 px-3 h-8 text-sm rounded-md transition-colors ' +
-        (props.primary
-          ? 'bg-accent text-white hover:bg-accent-hover'
-          : 'text-fg hover:bg-surface-hover')
+        (props.disabled
+          ? 'text-fg-subtle/50 cursor-not-allowed'
+          : props.primary
+            ? 'bg-accent text-white hover:bg-accent-hover'
+            : props.danger
+              ? 'text-red-500 hover:bg-red-500/10'
+              : 'text-fg hover:bg-surface-hover')
       }
     >
       {props.icon}
@@ -289,6 +575,45 @@ function ActionButton(props: {
 
 function Divider() {
   return <div className="w-px h-6 bg-surface-border" />;
+}
+
+function Tooltip({ label, anchorRef }: { label: string; anchorRef: RefObject<HTMLElement | null> }) {
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  useEffect(() => {
+    const el = anchorRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setPos({ top: r.top - 32, left: r.left + r.width / 2 });
+  }, [anchorRef]);
+
+  if (!pos) return null;
+  return createPortal(
+    <div
+      style={{ position: 'fixed', top: pos.top, left: pos.left, transform: 'translateX(-50%)', zIndex: 99999, pointerEvents: 'none' }}
+      className="px-2 py-1 rounded-md bg-zinc-900 text-white text-xs font-medium shadow-lg whitespace-nowrap animate-fade-in"
+    >
+      {label}
+    </div>,
+    document.body,
+  );
+}
+
+function useTooltip<T extends HTMLElement = HTMLButtonElement>(label: string) {
+  const [visible, setVisible] = useState(false);
+  const ref = useRef<T>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const show = () => {
+    timer.current = setTimeout(() => setVisible(true), 500);
+  };
+  const hide = () => {
+    if (timer.current) clearTimeout(timer.current);
+    setVisible(false);
+  };
+
+  const tooltip = visible ? <Tooltip label={label} anchorRef={ref} /> : null;
+  return { ref, tooltip, onMouseEnter: show, onMouseLeave: hide };
 }
 
 // --- Icons ---
@@ -412,6 +737,18 @@ function RedoIcon() {
   );
 }
 
+function TrashIcon() {
+  return (
+    <svg {...ICON_PROPS} aria-hidden="true">
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+    </svg>
+  );
+}
+
 function CopyIcon() {
   return (
     <svg {...ICON_PROPS} aria-hidden="true">
@@ -436,6 +773,18 @@ function CloseIcon() {
     <svg {...ICON_PROPS} aria-hidden="true">
       <line x1="6" y1="6" x2="18" y2="18" />
       <line x1="6" y1="18" x2="18" y2="6" />
+    </svg>
+  );
+}
+
+function ShareIcon() {
+  return (
+    <svg {...ICON_PROPS} aria-hidden="true">
+      <circle cx="18" cy="5" r="3" />
+      <circle cx="6" cy="12" r="3" />
+      <circle cx="18" cy="19" r="3" />
+      <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+      <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
     </svg>
   );
 }
@@ -526,7 +875,7 @@ function drawShape(ctx: CanvasRenderingContext2D, s: Shape, imgEl: HTMLImageElem
       ctx.lineTo(x2, y2);
       ctx.stroke();
       const angle = Math.atan2(y2 - y1, x2 - x1);
-      const head = Math.max(8, s.strokeWidth * 3);
+      const head = Math.max(8, s.strokeWidth * s.headSize);
       ctx.beginPath();
       ctx.moveTo(x2, y2);
       ctx.lineTo(

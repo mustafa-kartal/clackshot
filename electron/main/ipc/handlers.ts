@@ -1,6 +1,6 @@
 // Tüm ipcMain.handle kayıtları tek noktada.
 // Her handler küçük ve typed; iş mantığı ilgili modülde.
-import { ipcMain, clipboard, nativeImage, dialog, BrowserWindow, shell } from 'electron';
+import { ipcMain, clipboard, nativeImage, dialog, BrowserWindow, shell, net } from 'electron';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { IPC } from './channels';
@@ -88,7 +88,16 @@ export function registerIpcHandlers(): void {
     IPC.editor.saveImage,
     async (_e, png: ArrayBuffer, suggestedName?: string) => {
       const dir = storage.get('saveDirectory');
-      const defaultName = suggestedName || `screenshot-${Date.now()}.png`;
+      const defaultName = suggestedName || (() => {
+        const d = new Date();
+        const dd = String(d.getDate()).padStart(2, '0');
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const yyyy = d.getFullYear();
+        const H = String(d.getHours()).padStart(2, '0');
+        const i = String(d.getMinutes()).padStart(2, '0');
+        const s = String(d.getSeconds()).padStart(2, '0');
+        return `clackshot-screenshot-${dd}-${mm}-${yyyy}-${H}-${i}-${s}.png`;
+      })();
       const { canceled, filePath } = await dialog.showSaveDialog({
         defaultPath: dir ? join(dir, defaultName) : defaultName,
         filters: [
@@ -122,7 +131,16 @@ export function registerIpcHandlers(): void {
     async (_e, bytes: ArrayBuffer, suggestedName?: string) => {
       // WebCodecs pipeline'ı zaten MP4 üretiyor — burada sadece diske yazıyoruz.
       const dir = storage.get('saveDirectory');
-      const defaultName = suggestedName || `recording-${Date.now()}.mp4`;
+      const defaultName = suggestedName || (() => {
+        const d = new Date();
+        const dd = String(d.getDate()).padStart(2, '0');
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const yyyy = d.getFullYear();
+        const H = String(d.getHours()).padStart(2, '0');
+        const i = String(d.getMinutes()).padStart(2, '0');
+        const s = String(d.getSeconds()).padStart(2, '0');
+        return `clackshot-video-${dd}-${mm}-${yyyy}-${H}-${i}-${s}.mp4`;
+      })();
       const { canceled, filePath } = await dialog.showSaveDialog({
         defaultPath: dir ? join(dir, defaultName) : defaultName,
         filters: [{ name: 'MP4 Video', extensions: ['mp4'] }],
@@ -182,6 +200,44 @@ export function registerIpcHandlers(): void {
   // -- shell
   ipcMain.handle(IPC.shell.showItemInFolder, async (_e, path: string) => {
     shell.showItemInFolder(path);
+  });
+  ipcMain.handle(IPC.shell.openExternal, async (_e, url: string) => {
+    await shell.openExternal(url);
+  });
+
+  // -- imgur
+  ipcMain.handle(IPC.imgur.upload, async (_e, buf: ArrayBuffer): Promise<string> => {
+    const base64 = Buffer.from(buf).toString('base64');
+    const body = JSON.stringify({ image: base64, type: 'base64' });
+
+    return new Promise((resolve, reject) => {
+      const req = net.request({
+        method: 'POST',
+        url: 'https://api.imgur.com/3/image',
+      });
+      req.setHeader('Authorization', 'Client-ID 546c25a59c58ad7');
+      req.setHeader('Content-Type', 'application/json');
+      req.on('response', (res) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (chunk) => chunks.push(chunk as Buffer));
+        res.on('end', () => {
+          try {
+            const json = JSON.parse(Buffer.concat(chunks).toString()) as {
+              success: boolean;
+              data: { link: string };
+              status: number;
+            };
+            if (!json.success) reject(new Error(`Imgur API ${json.status}`));
+            else resolve(json.data.link);
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+      req.on('error', reject);
+      req.write(body);
+      req.end();
+    });
   });
 
   // -- permissions

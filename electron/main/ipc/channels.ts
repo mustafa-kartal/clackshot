@@ -41,6 +41,10 @@ export const IPC = {
   },
   shell: {
     showItemInFolder: 'shell:show-item-in-folder',
+    openExternal: 'shell:open-external',
+  },
+  imgur: {
+    upload: 'imgur:upload',
   },
   events: {
     captureCompleted: 'event:capture-completed',

@@ -19,7 +19,7 @@
     "node": ">=20"
   },
   "dependencies": {
-    "electron-store": "^10.0.0",
+    "electron-store": "^8.2.0",
     "electron-updater": "^6.8.3",
     "konva": "^9.3.16",
     "mp4-muxer": "^5.2.2",

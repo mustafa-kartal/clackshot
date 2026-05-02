@@ -6,7 +6,7 @@
       CSP: dev modda Vite HMR WebSocket için ws: ve script eval (HMR client) gerek.
       Prod build'de electron main'in onHeadersReceived hook'u ile sıkıştırılır (Phase 5).
     -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: ws: http://localhost:* http://127.0.0.1:*; img-src 'self' data: blob:;" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: ws: http://localhost:* http://127.0.0.1:*; img-src 'self' data: blob: https://i.imgur.com; connect-src 'self' ws: http://localhost:* http://127.0.0.1:* https://api.imgur.com;" />
     <title>ClackShot</title>
     <link rel="icon" type="image/png" href="../../resources/icons/favicon-dark.png" />
     <link rel="stylesheet" href="./styles/globals.css" />
