@@ -72,7 +72,9 @@ export function createOverlayWindow(purpose: OverlayPurpose = 'screenshot'): Bro
     },
   });
 
-  overlayWindow.setAlwaysOnTop(true, 'screen-saver');
+  // macOS'ta 'pop-up-menu' level'ı fullscreen space'lerin üstünde görünür
+  // ve mevcut space'den masaüstüne geçişi engeller.
+  overlayWindow.setAlwaysOnTop(true, process.platform === 'darwin' ? 'pop-up-menu' : 'screen-saver');
   overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 
   // Dev mod: Vite dev sunucusu, prod: derlenmiş HTML.

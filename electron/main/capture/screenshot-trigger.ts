@@ -6,7 +6,7 @@ import { listSources } from './sources';
 import { sendCaptureToEditor } from '../windows/editor';
 import { createOverlayWindow } from '../windows/overlay';
 import { checkScreenAccess, openScreenAccessSettings } from '../permissions';
-import { dialog } from 'electron';
+import { dialog, desktopCapturer } from 'electron';
 import { log } from '../utils/logger';
 
 async function ensureScreenAccess(): Promise<boolean> {
@@ -53,6 +53,10 @@ export async function triggerCapture(
 
   if (mode === 'area') {
     // Overlay aç. Sonuç IPC'den gelecek (overlay:submit handler'ı capture'ı başlatır).
+    // macOS'ta overlay'i kurmadan önce desktopCapturer'ı ısıt — ilk çağrı yavaş,
+    // önceden tetikleyerek overlay gösterildiğinde hazır olsun.
+    desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 1, height: 1 } })
+      .catch(() => {/* ısınma hatası önemli değil */});
     createOverlayWindow();
     return;
   }

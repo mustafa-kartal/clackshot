@@ -24,28 +24,36 @@ function pickDisplay(displayId?: number): Display {
   return screen.getPrimaryDisplay();
 }
 
+async function findScreenSourceId(display: Display): Promise<string> {
+  // Önce 1x1 thumbnail ile hızlıca kaynak ID'yi bul — büyük bitmap üretme.
+  const sources = await desktopCapturer.getSources({
+    types: ['screen'],
+    thumbnailSize: { width: 1, height: 1 },
+  });
+  const target = sources.find(
+    (s) => s.display_id === String(display.id) || Number(s.display_id) === display.id,
+  );
+  return (target ?? sources[0])?.id ?? '';
+}
+
 async function captureFullDisplay(display: Display): Promise<{
   buffer: Buffer;
   width: number;
   height: number;
 }> {
-  // scaleFactor: Retina/HiDPI'da fiziksel piksel sayısı.
   const scale = display.scaleFactor || 1;
   const width = Math.round(display.size.width * scale);
   const height = Math.round(display.size.height * scale);
+
+  // İki aşamalı: önce ID bul (hızlı, 1x1), sonra tam boyut thumbnail al.
+  const sourceId = await findScreenSourceId(display);
 
   const sources = await desktopCapturer.getSources({
     types: ['screen'],
     thumbnailSize: { width, height },
   });
 
-  const target = sources.find(
-    (s) =>
-      s.display_id === String(display.id) ||
-      Number(s.display_id) === display.id,
-  );
-  // Tek ekran sistemlerinde display_id boş gelebilir — ilk kaynağa düş.
-  const source = target ?? sources[0];
+  const source = sources.find((s) => s.id === sourceId) ?? sources[0];
   if (!source) throw new Error('Hiç ekran kaynağı bulunamadı.');
 
   const img = source.thumbnail;
