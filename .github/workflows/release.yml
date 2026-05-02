@@ -9,8 +9,8 @@ permissions:
   contents: write
 
 jobs:
-  build-mac:
-    name: Build macOS
+  build-mac-arm64:
+    name: Build macOS (arm64)
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,13 +23,32 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build & publish macOS
+      - name: Build & publish macOS arm64
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
-        run: npm run build:mac -- --publish always
+        run: npx electron-builder --mac --arm64 --publish always
+
+  build-mac-x64:
+    name: Build macOS (x64)
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build & publish macOS x64
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: npx electron-builder --mac --x64 --publish always
 
   build-win:
-    name: Build Windows
+    name: Build Windows (x64)
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -45,10 +64,10 @@ jobs:
       - name: Build & publish Windows
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
-        run: npm run build:win -- --publish always
+        run: npx electron-builder --win --x64 --publish always
 
   build-linux:
-    name: Build Linux
+    name: Build Linux (x64)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -58,15 +77,15 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Install dependencies
-        run: npm ci
-
       - name: Install Linux build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libarchive-tools rpm
+          sudo apt-get install -y libarchive-tools rpm libvips-dev
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Build & publish Linux
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
-        run: npm run build:linux -- --publish always
+        run: npx electron-builder --linux --x64 --publish always
