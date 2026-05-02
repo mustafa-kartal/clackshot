@@ -33,7 +33,7 @@ const RECORD_ORDER: ShortcutKey[] = [
   'recordWindow',
 ];
 
-type TabId = 'general' | 'shortcuts' | 'recording';
+type TabId = 'general' | 'shortcuts' | 'recording' | 'system';
 
 interface SettingsProps {
   open: boolean;
@@ -98,6 +98,13 @@ export function Settings({ open, onClose }: SettingsProps) {
               active={tab === 'recording'}
               onClick={() => setTab('recording')}
             />
+            <SidebarItem
+              id="system"
+              label="Sistem"
+              icon={<SystemIcon />}
+              active={tab === 'system'}
+              onClick={() => setTab('system')}
+            />
           </nav>
 
           {/* Content */}
@@ -105,6 +112,7 @@ export function Settings({ open, onClose }: SettingsProps) {
             {tab === 'general' && <GeneralPane />}
             {tab === 'shortcuts' && <ShortcutsPane />}
             {tab === 'recording' && <RecordingPane />}
+            {tab === 'system' && <SystemPane />}
           </div>
         </div>
       </div>
@@ -146,8 +154,6 @@ function GeneralPane() {
   const pickSaveDirectory = useConfigStore((s) => s.pickSaveDirectory);
   const defaultFormat = useConfigStore((s) => s.defaultFormat);
   const setDefaultFormat = useConfigStore((s) => s.setDefaultFormat);
-  const launchAtLogin = useConfigStore((s) => s.launchAtLogin);
-  const setLaunchAtLogin = useConfigStore((s) => s.setLaunchAtLogin);
 
   return (
     <div className="flex flex-col gap-7">
@@ -208,14 +214,6 @@ function GeneralPane() {
         </div>
       </Section>
 
-      <Section title="Sistem" hint="Oturum açıldığında uygulamanın otomatik başlatılması.">
-        <ToggleRow
-          label="Başlangıçta Otomatik Başlat"
-          hint="Bilgisayar açıldığında ClackShot arka planda çalışmaya başlar."
-          value={launchAtLogin}
-          onChange={(v) => void setLaunchAtLogin(v)}
-        />
-      </Section>
     </div>
   );
 }
@@ -355,6 +353,26 @@ function RecordingPane() {
   );
 }
 
+// --- Pane: Sistem ---
+
+function SystemPane() {
+  const launchAtLogin = useConfigStore((s) => s.launchAtLogin);
+  const setLaunchAtLogin = useConfigStore((s) => s.setLaunchAtLogin);
+
+  return (
+    <div className="flex flex-col gap-7">
+      <Section title="Başlangıç" hint="Oturum açıldığında uygulamanın davranışı.">
+        <ToggleRow
+          label="Başlangıçta Otomatik Başlat"
+          hint="Bilgisayar açıldığında ClackShot arka planda çalışmaya başlar."
+          value={launchAtLogin}
+          onChange={(v) => void setLaunchAtLogin(v)}
+        />
+      </Section>
+    </div>
+  );
+}
+
 // --- Reusable components ---
 
 function Section(props: { title: string; hint?: string; children: ReactNode }) {
@@ -489,16 +507,30 @@ function ToggleRow(props: {
         role="switch"
         aria-checked={props.value}
         onClick={() => props.onChange(!props.value)}
-        className={
-          'relative w-10 h-6 rounded-full transition-colors shrink-0 focus:outline-none ' +
-          (props.value ? 'bg-accent' : 'bg-surface-border')
-        }
+        style={{
+          position: 'relative',
+          width: 40,
+          height: 24,
+          borderRadius: 12,
+          flexShrink: 0,
+          border: 'none',
+          cursor: 'pointer',
+          transition: 'background-color 0.2s',
+          backgroundColor: props.value ? '#0EA5E9' : 'rgb(39 39 42)',
+        }}
       >
         <span
-          className={
-            'absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ' +
-            (props.value ? 'translate-x-5' : 'translate-x-1')
-          }
+          style={{
+            position: 'absolute',
+            top: 4,
+            left: props.value ? 20 : 4,
+            width: 16,
+            height: 16,
+            borderRadius: '50%',
+            backgroundColor: 'white',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+            transition: 'left 0.2s',
+          }}
         />
       </button>
     </div>
@@ -578,6 +610,16 @@ function VideoIcon() {
     <svg {...ICON_PROPS} aria-hidden="true">
       <polygon points="23 7 16 12 23 17 23 7" />
       <rect x="1" y="5" width="15" height="14" rx="2" />
+    </svg>
+  );
+}
+
+function SystemIcon() {
+  return (
+    <svg {...ICON_PROPS} aria-hidden="true">
+      <rect x="2" y="3" width="20" height="14" rx="2" />
+      <line x1="8" y1="21" x2="16" y2="21" />
+      <line x1="12" y1="17" x2="12" y2="21" />
     </svg>
   );
 }
