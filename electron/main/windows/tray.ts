@@ -12,6 +12,7 @@ import { triggerRecording } from '../shortcuts';
 import { createEditorWindow, getEditorWindow } from './editor';
 import { storage } from '../storage';
 import { log } from '../utils/logger';
+import { IPC } from '../ipc/channels';
 
 let tray: Tray | null = null;
 
