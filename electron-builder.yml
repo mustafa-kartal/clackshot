@@ -28,6 +28,7 @@ extraResources:
     filter:
       - "favicon-*.png"
       - "logo-*.png"
+      - "macOS-tray-icon.png"
 
 asar: true
 asarUnpack:
