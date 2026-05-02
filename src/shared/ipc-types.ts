@@ -73,6 +73,7 @@ export interface IpcApi {
     captureCompleted(handler: (result: CaptureResult) => void): () => void;
     overlayEnterRecording(handler: (rect: Rect) => void): () => void;
     triggerRecord(handler: (mode: RecordingMode) => void): () => void;
+    openSettings(handler: () => void): () => void;
   };
 }
 

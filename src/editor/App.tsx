@@ -46,6 +46,12 @@ export function App() {
     return off;
   }, []);
 
+  // Tray menüsünden "Ayarlar" tıklanınca modal'ı aç.
+  useEffect(() => {
+    const off = window.api.on.openSettings(() => setSettingsOpen(true));
+    return off;
+  }, []);
+
   useEffect(() => {
     void loadConfig();
   }, [loadConfig]);

@@ -47,6 +47,14 @@ function formatRelative(timestamp: number): string {
   return `${diffD}g önce`;
 }
 
+function openSettings(): void {
+  const win = getEditorWindow() ?? createEditorWindow();
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+  win.webContents.send(IPC.events.openSettings);
+}
+
 function buildMenu(): Menu {
   const cfg = storage.getAll();
   const sc = cfg.shortcuts;
@@ -66,7 +74,7 @@ function buildMenu(): Menu {
           })),
           { type: 'separator' },
           {
-            label: 'Listeyi Temizle',
+            label: '🗑  Listeyi Temizle',
             click: () => {
               storage.clearRecents();
               rebuildTrayMenu();
@@ -76,7 +84,7 @@ function buildMenu(): Menu {
 
   return Menu.buildFromTemplate([
     {
-      label: 'ClackShot Penceresini Aç',
+      label: '🖥  ClackShot Penceresini Aç',
       click: () => {
         const win = getEditorWindow() ?? createEditorWindow();
         if (win.isMinimized()) win.restore();
@@ -86,40 +94,40 @@ function buildMenu(): Menu {
     },
     { type: 'separator' },
     {
-      label: 'Ekran Görüntüsü',
+      label: '📸  Ekran Görüntüsü',
       submenu: [
         {
-          label: 'Alan Seç',
+          label: '✂️  Alan Seç',
           accelerator: sc.captureArea,
           click: () => triggerCapture('area'),
         },
         {
-          label: 'Tam Ekran',
+          label: '🖥  Tam Ekran',
           accelerator: sc.captureFullscreen,
           click: () => triggerCapture('fullscreen'),
         },
         {
-          label: 'Pencere',
+          label: '🪟  Pencere',
           accelerator: sc.captureWindow,
           click: () => triggerCapture('window'),
         },
       ],
     },
     {
-      label: 'Ekran Kaydı',
+      label: '🎬  Ekran Kaydı',
       submenu: [
         {
-          label: 'Alan Kaydet',
+          label: '✂️  Alan Kaydet',
           accelerator: sc.recordArea,
           click: () => triggerRecording('area'),
         },
         {
-          label: 'Tam Ekran Kaydet',
+          label: '🖥  Tam Ekran Kaydet',
           accelerator: sc.recordFullscreen,
           click: () => triggerRecording('fullscreen'),
         },
         {
-          label: 'Pencere Kaydet',
+          label: '🪟  Pencere Kaydet',
           accelerator: sc.recordWindow,
           click: () => triggerRecording('window'),
         },
@@ -127,11 +135,16 @@ function buildMenu(): Menu {
     },
     { type: 'separator' },
     {
-      label: 'Son Kayıtlar',
+      label: '🕓  Son Kayıtlar',
       submenu: recentsSubmenu,
     },
     { type: 'separator' },
-    { label: 'Çıkış', click: () => app.quit() },
+    {
+      label: '⚙️  Ayarlar',
+      click: openSettings,
+    },
+    { type: 'separator' },
+    { label: '🚪  Çıkış', click: () => app.quit() },
   ]);
 }
 

@@ -68,6 +68,11 @@ const api: IpcApi = {
       ipcRenderer.on(IPC.events.triggerRecord, wrapped);
       return () => ipcRenderer.removeListener(IPC.events.triggerRecord, wrapped);
     },
+    openSettings(handler) {
+      const wrapped = () => handler();
+      ipcRenderer.on(IPC.events.openSettings, wrapped);
+      return () => ipcRenderer.removeListener(IPC.events.openSettings, wrapped);
+    },
   },
 };
 

@@ -54,5 +54,6 @@ export const IPC = {
     faceCamStopCamera: 'event:face-cam-stop-camera',
     faceCamStartCamera: 'event:face-cam-start-camera',
     triggerRecord: 'event:trigger-record',
+    openSettings: 'event:open-settings',
   },
 } as const;
