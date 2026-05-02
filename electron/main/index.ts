@@ -6,6 +6,7 @@ import { createTray } from './windows/tray';
 import { createEditorWindow, getEditorWindow } from './windows/editor';
 import { createSplashWindow } from './windows/splash';
 import { initAutoUpdater, setUpdaterMainWindow } from './updater';
+import { storage } from './storage';
 import { log } from './utils/logger';
 
 // Wayland/PipeWire desteği — Linux'ta sistem ekran paylaşım portalını etkinleştirir.
@@ -30,8 +31,8 @@ app.on('second-instance', () => {
   }
 });
 
-// macOS'ta dock ikonunu gizleme: tray-only davranışı isterseniz aç.
-// app.dock?.hide();
+// macOS dock'tan gizle — uygulama tray-only çalışır.
+if (process.platform === 'darwin') app.dock?.hide();
 
 // macOS Screen Recording iznini proaktif tetikle.
 // İlk desktopCapturer çağrısı macOS TCC'ye uygulamayı kaydeder ve
@@ -63,6 +64,10 @@ app.whenReady().then(async () => {
   registerIpcHandlers();
   await createTray();
   registerShortcuts();
+
+  // Login item ayarını storage ile senkronize et (kurulum sonrası ilk açılış için).
+  const launchAtLogin = storage.get('launchAtLogin') ?? false;
+  app.setLoginItemSettings({ openAtLogin: launchAtLogin, openAsHidden: true });
 
   // İzin entry'sini hemen kaydettir ki Settings listesinde görünsün.
   await primeScreenAccessOnMac();

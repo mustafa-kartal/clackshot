@@ -59,6 +59,7 @@ export interface AppConfig {
   defaultFormat: ImageFormat;
   saveDirectory: string | null;
   copyToClipboardOnCapture: boolean;
+  launchAtLogin: boolean;
   videoResolution: VideoResolution;
   videoFps: VideoFps;
   videoQuality: VideoQuality;

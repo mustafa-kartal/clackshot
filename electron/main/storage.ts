@@ -12,6 +12,7 @@ const defaults: AppConfig = {
   defaultFormat: 'png',
   saveDirectory: null,
   copyToClipboardOnCapture: true,
+  launchAtLogin: false,
   videoResolution: '1080p',
   videoFps: 30,
   videoQuality: 'medium',
@@ -63,6 +64,7 @@ const store = new Store<AppConfig>({
   if (!has('videoResolution')) store.set('videoResolution', defaults.videoResolution);
   if (!has('videoFps')) store.set('videoFps', defaults.videoFps);
   if (!has('videoQuality')) store.set('videoQuality', defaults.videoQuality);
+  if (!has('launchAtLogin')) store.set('launchAtLogin', defaults.launchAtLogin);
 }
 
 export const storage = {

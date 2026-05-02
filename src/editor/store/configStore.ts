@@ -1,6 +1,3 @@
-// Settings modal'ı ve EmptyState ipuçları gibi farklı bileşenlerin aynı
-// kısayol değerlerini görmesi için tek kaynak. App mount'ta bir kez yüklenir,
-// setShortcut başarılı olduğunda lokal state de güncellenir.
 import { create } from 'zustand';
 import type { AppConfig, ImageFormat, VideoFps, VideoQuality, VideoResolution } from '../../shared/types';
 
@@ -15,6 +12,7 @@ interface ConfigState {
   videoFps: VideoFps;
   videoQuality: VideoQuality;
   theme: Theme;
+  launchAtLogin: boolean;
   loaded: boolean;
   load(): Promise<void>;
   setShortcut(
@@ -27,6 +25,7 @@ interface ConfigState {
   setVideoFps(v: VideoFps): Promise<void>;
   setVideoQuality(v: VideoQuality): Promise<void>;
   setTheme(v: Theme): Promise<void>;
+  setLaunchAtLogin(v: boolean): Promise<void>;
 }
 
 export const useConfigStore = create<ConfigState>((set, get) => ({
@@ -37,6 +36,7 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
   videoFps: 30,
   videoQuality: 'medium',
   theme: 'system',
+  launchAtLogin: false,
   loaded: false,
   async load() {
     const cfg = await window.api.config.getAll();
@@ -48,6 +48,7 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
       videoFps: cfg.videoFps,
       videoQuality: cfg.videoQuality,
       theme: cfg.theme,
+      launchAtLogin: cfg.launchAtLogin ?? false,
       loaded: true,
     });
   },
@@ -83,5 +84,9 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
   async setTheme(v) {
     await window.api.config.set('theme', v);
     set({ theme: v });
+  },
+  async setLaunchAtLogin(v) {
+    await window.api.config.setLaunchAtLogin(v);
+    set({ launchAtLogin: v });
   },
 }));

@@ -38,6 +38,7 @@ export const IPC = {
     set: 'config:set',
     setShortcut: 'config:set-shortcut',
     pickSaveDirectory: 'config:pick-save-directory',
+    setLaunchAtLogin: 'config:set-launch-at-login',
   },
   shell: {
     showItemInFolder: 'shell:show-item-in-folder',

@@ -43,6 +43,7 @@ const api: IpcApi = {
     set: (key, value) => ipcRenderer.invoke(IPC.config.set, key, value),
     setShortcut: (key, accel) => ipcRenderer.invoke(IPC.config.setShortcut, key, accel),
     pickSaveDirectory: () => ipcRenderer.invoke(IPC.config.pickSaveDirectory),
+    setLaunchAtLogin: (enabled) => ipcRenderer.invoke(IPC.config.setLaunchAtLogin, enabled),
   },
   shell: {
     showItemInFolder: (path) => ipcRenderer.invoke(IPC.shell.showItemInFolder, path),

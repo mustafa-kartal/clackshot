@@ -61,6 +61,7 @@ export interface IpcApi {
       accelerator: string,
     ): Promise<{ ok: boolean; error?: string }>;
     pickSaveDirectory(): Promise<string | null>;
+    setLaunchAtLogin(enabled: boolean): Promise<void>;
   };
   shell: {
     showItemInFolder(path: string): Promise<void>;

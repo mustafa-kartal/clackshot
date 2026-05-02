@@ -1,6 +1,6 @@
 // Tüm ipcMain.handle kayıtları tek noktada.
 // Her handler küçük ve typed; iş mantığı ilgili modülde.
-import { ipcMain, clipboard, nativeImage, dialog, BrowserWindow, shell, net } from 'electron';
+import { ipcMain, clipboard, nativeImage, dialog, BrowserWindow, shell, net, app } from 'electron';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { IPC } from './channels';
@@ -195,6 +195,12 @@ export function registerIpcHandlers(): void {
   });
   ipcMain.handle(IPC.editor.close, async (e) => {
     BrowserWindow.fromWebContents(e.sender)?.close();
+  });
+
+  // -- launch at login
+  ipcMain.handle(IPC.config.setLaunchAtLogin, async (_e, enabled: boolean) => {
+    app.setLoginItemSettings({ openAtLogin: enabled, openAsHidden: true });
+    storage.set('launchAtLogin', enabled);
   });
 
   // -- shell

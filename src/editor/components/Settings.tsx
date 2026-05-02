@@ -146,6 +146,8 @@ function GeneralPane() {
   const pickSaveDirectory = useConfigStore((s) => s.pickSaveDirectory);
   const defaultFormat = useConfigStore((s) => s.defaultFormat);
   const setDefaultFormat = useConfigStore((s) => s.setDefaultFormat);
+  const launchAtLogin = useConfigStore((s) => s.launchAtLogin);
+  const setLaunchAtLogin = useConfigStore((s) => s.setLaunchAtLogin);
 
   return (
     <div className="flex flex-col gap-7">
@@ -204,6 +206,15 @@ function GeneralPane() {
             Değiştir
           </button>
         </div>
+      </Section>
+
+      <Section title="Sistem" hint="Oturum açıldığında uygulamanın otomatik başlatılması.">
+        <ToggleRow
+          label="Başlangıçta Otomatik Başlat"
+          hint="Bilgisayar açıldığında ClackShot arka planda çalışmaya başlar."
+          value={launchAtLogin}
+          onChange={(v) => void setLaunchAtLogin(v)}
+        />
       </Section>
     </div>
   );
@@ -458,6 +469,38 @@ function ThemePreview({ kind }: { kind: 'light' | 'dark' | 'system' }) {
           'w-6 h-1.5 rounded-full ' + (kind === 'light' ? 'bg-zinc-300' : 'bg-zinc-700')
         }
       />
+    </div>
+  );
+}
+
+function ToggleRow(props: {
+  label: string;
+  hint?: string;
+  value: boolean;
+  onChange(v: boolean): void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 px-3 py-2.5 rounded-xl bg-surface border border-surface-border">
+      <div className="flex flex-col gap-0.5">
+        <span className="text-sm font-medium text-fg">{props.label}</span>
+        {props.hint && <span className="text-xs text-fg-subtle">{props.hint}</span>}
+      </div>
+      <button
+        role="switch"
+        aria-checked={props.value}
+        onClick={() => props.onChange(!props.value)}
+        className={
+          'relative w-10 h-6 rounded-full transition-colors shrink-0 focus:outline-none ' +
+          (props.value ? 'bg-accent' : 'bg-surface-border')
+        }
+      >
+        <span
+          className={
+            'absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ' +
+            (props.value ? 'translate-x-5' : 'translate-x-1')
+          }
+        />
+      </button>
     </div>
   );
 }
