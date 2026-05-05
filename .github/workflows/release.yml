@@ -9,75 +9,26 @@ permissions:
   contents: write
 
 jobs:
-  build-mac-arm64:
-    name: Build macOS (arm64)
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
+  build:
+    name: Build ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS arm64
+            os: macos-latest
+            eb_args: --mac --arm64
+          - name: macOS x64
+            os: macos-latest
+            eb_args: --mac --x64
+          - name: Windows x64
+            os: windows-latest
+            eb_args: --win --x64
+          - name: Linux x64
+            os: ubuntu-latest
+            eb_args: --linux --x64
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build preload & renderer
-        run: npm run build:preload && npx vite build
-
-      - name: Build & publish macOS arm64
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-builder --mac --arm64 --publish onTag
-
-  build-mac-x64:
-    name: Build macOS (x64)
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build preload & renderer
-        run: npm run build:preload && npx vite build
-
-      - name: Build & publish macOS x64
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-builder --mac --x64 --publish onTag
-
-  build-win:
-    name: Build Windows (x64)
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build preload & renderer
-        run: npm run build:preload && npx vite build
-
-      - name: Build & publish Windows
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-builder --win --x64 --publish onTag
-
-  build-linux:
-    name: Build Linux (x64)
-    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -87,6 +38,7 @@ jobs:
           cache: npm
 
       - name: Install Linux build dependencies
+        if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
           sudo apt-get install -y libarchive-tools rpm libvips-dev
@@ -97,7 +49,7 @@ jobs:
       - name: Build preload & renderer
         run: npm run build:preload && npx vite build
 
-      - name: Build & publish Linux
+      - name: Build & publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-builder --linux --x64 --publish onTag
+        run: npx electron-builder ${{ matrix.eb_args }} --publish onTag

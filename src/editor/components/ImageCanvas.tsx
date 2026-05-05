@@ -743,7 +743,7 @@ function CropOverlay({
   };
 
   const dim = 'rgba(0, 0, 0, 0.45)';
-  const hs = 50; // handle boyutu (px, image-space)
+  const hs = 25; // handle boyutu (px, image-space)
   const cx = rect.x + rect.width / 2;
   const cy = rect.y + rect.height / 2;
   const r2 = rect.x + rect.width;
@@ -793,7 +793,7 @@ function CropOverlay({
             height={hs}
             fill="white"
             stroke="#3b82f6"
-            strokeWidth={15}
+            strokeWidth={5}
             cornerRadius={4}
             shadowColor="rgba(0,0,0,0.5)"
             shadowBlur={6}
@@ -825,7 +825,7 @@ function ShapeResizeOverlay({
     if (container) container.style.cursor = c;
   };
 
-  const hs = 50; // handle boyutu (image-space px)
+  const hs = 25; // handle boyutu (image-space px)
   const stroke = '#3b82f6';
 
   // Bounding box handles — rect, blur, text, number, pen
@@ -894,7 +894,7 @@ function ShapeResizeOverlay({
           height={hs}
           fill="white"
           stroke={stroke}
-          strokeWidth={10}
+          strokeWidth={2}
           cornerRadius={3}
           shadowColor="rgba(0,0,0,0.4)"
           shadowBlur={4}
