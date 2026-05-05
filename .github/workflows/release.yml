@@ -68,7 +68,20 @@ jobs:
       - name: Build preload & renderer
         run: npm run build:preload && npx vite build
 
-      - name: Build & publish
+      - name: Build
+        run: npx electron-builder ${{ matrix.eb_args }}
+
+      - name: Upload artifacts to release
+        shell: bash
+        run: |
+          files=$(find build -maxdepth 1 -type f \( \
+            -name "*.dmg" -o \
+            -name "*.zip" -o \
+            -name "*.exe" -o \
+            -name "*.AppImage" -o \
+            -name "*.deb" \
+          \))
+          echo "Uploading: $files"
+          gh release upload "${{ github.ref_name }}" $files --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-builder ${{ matrix.eb_args }} --publish always
