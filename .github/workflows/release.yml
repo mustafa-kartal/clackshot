@@ -74,14 +74,15 @@ jobs:
       - name: Upload artifacts to release
         shell: bash
         run: |
-          files=$(find build -maxdepth 1 -type f \( \
+          while IFS= read -r file; do
+            echo "Uploading: $file"
+            gh release upload "${{ github.ref_name }}" "$file" --clobber
+          done < <(find build -maxdepth 1 -type f \( \
             -name "*.dmg" -o \
             -name "*.zip" -o \
             -name "*.exe" -o \
             -name "*.AppImage" -o \
             -name "*.deb" \
           \))
-          echo "Uploading: $files"
-          gh release upload "${{ github.ref_name }}" $files --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

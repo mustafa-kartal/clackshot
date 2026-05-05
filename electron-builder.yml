@@ -46,9 +46,7 @@ mac:
   notarize: false # CI'da APPLE_ID + APPLE_APP_SPECIFIC_PASSWORD ile aktifleştirilecek
   target:
     - target: dmg
-      arch: [x64, arm64]
     - target: zip
-      arch: [x64, arm64]
 
 win:
   icon: resources/icons/icon.png
