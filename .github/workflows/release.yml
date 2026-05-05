@@ -69,7 +69,7 @@ jobs:
         run: npm run build:preload && npx vite build
 
       - name: Build
-        run: npx electron-builder ${{ matrix.eb_args }}
+        run: npx electron-builder ${{ matrix.eb_args }} --publish never
 
       - name: Upload artifacts to release
         shell: bash
